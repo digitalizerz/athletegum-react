@@ -1,0 +1,97 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String   @id @default(cuid())
+  email              String   @unique
+  passwordHash       String
+  name               String
+  role               String
+  businessName       String?
+  phone              String?
+  sport              String?
+  school             String?
+  athleteLevel       String?
+  username           String?  @unique
+  isActive           Boolean  @default(true)
+  subscriptionPlan   String   @default("free")
+  subscriptionStatus String   @default("inactive")
+  stripeCustomerId   String?
+  stripeAccountId    String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  dealsOwned    Deal[]           @relation("BusinessDeals")
+  dealsReceived Deal[]           @relation("AthleteDeals")
+  invitations   DealInvitation[]
+  messages      Message[]
+  notifications Notification[]
+}
+
+model Deal {
+  id                 String    @id @default(cuid())
+  businessId         String
+  business           User      @relation("BusinessDeals", fields: [businessId], references: [id])
+  athleteId          String?
+  athlete            User?     @relation("AthleteDeals", fields: [athleteId], references: [id])
+  dealType           String
+  platforms          String?
+  compensationAmount Float
+  platformFeeAmount  Float     @default(0)
+  athleteFeeAmount   Float     @default(0)
+  athleteNetPayout   Float     @default(0)
+  deadline           DateTime?
+  notes              String?
+  deliverables       String?
+  status                  String    @default("pending")
+  paymentStatus           String    @default("unpaid")
+  stripeCheckoutSessionId String?
+  stripePaymentIntentId   String?
+  paidAt                  DateTime?
+  token                   String    @unique
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  invitations DealInvitation[]
+  messages    Message[]
+}
+
+model DealInvitation {
+  id           String   @id @default(cuid())
+  dealId       String
+  deal         Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  athleteEmail String
+  athleteId    String?
+  athlete      User?    @relation(fields: [athleteId], references: [id])
+  token        String   @unique
+  status       String   @default("pending")
+  createdAt    DateTime @default(now())
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  dealId    String
+  deal      Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  senderId  String?
+  sender    User?    @relation(fields: [senderId], references: [id])
+  body      String
+  system    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  body      String
+  href      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+}
