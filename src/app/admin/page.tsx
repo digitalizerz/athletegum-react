@@ -9,6 +9,26 @@ export const dynamic = "force-dynamic";
 
 const RANGES = ["7d", "30d", "90d", "all"] as const;
 type RangeId = (typeof RANGES)[number];
+type Totals = {
+  users: number | bigint;
+  athletes: number | bigint;
+  businesses: number | bigint;
+  deals: number | bigint;
+  usersNow: number | bigint;
+  athletesNow: number | bigint;
+  businessesNow: number | bigint;
+  dealsNow: number | bigint;
+  usersPrev: number | bigint;
+  athletesPrev: number | bigint;
+  businessesPrev: number | bigint;
+  dealsPrev: number | bigint;
+  feesNow: number | bigint;
+  feesPrev: number | bigint;
+};
+
+function num(value: number | bigint | null | undefined) {
+  return Number(value ?? 0);
+}
 
 export default async function AdminHome({ searchParams }: { searchParams: Promise<{ range?: string }> }) {
   await requireUser("admin");
@@ -18,66 +38,58 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
   const start = days ? new Date(Date.now() - days * 86400000) : null;
   const prior = days ? new Date(Date.now() - days * 2 * 86400000) : null;
 
+  const from = start ?? new Date(0);
+  const until = new Date("2100-01-01T00:00:00.000Z");
+  const priorFrom = prior ?? new Date(0);
+  const priorUntil = start ?? new Date(0);
   const windowWhere = start ? { createdAt: { gte: start } } : {};
-  const priorWhere = prior && start ? { createdAt: { gte: prior, lt: start } } : null;
-  const paid = { paymentStatus: { in: ["paid_escrowed", "released"] } };
-  const feeWhere = (from: Date | null, until: Date | null) => ({
-    ...paid,
-    ...(from || until
-      ? {
-          OR: [
-            { paidAt: { ...(from ? { gte: from } : {}), ...(until ? { lt: until } : {}) } },
-            { paidAt: null, createdAt: { ...(from ? { gte: from } : {}), ...(until ? { lt: until } : {}) } },
-          ],
-        }
-      : {}),
-  });
-
-  const [users, athletes, businesses, deals, usersNow, athletesNow, businessesNow, dealsNow, usersPrev, athletesPrev, businessesPrev, dealsPrev, feesNow, feesPrev, recentPeople, recentDeals, recentMessages] =
-    await Promise.all([
-      prisma.user.count(),
-      prisma.user.count({ where: { role: "athlete" } }),
-      prisma.user.count({ where: { role: "business" } }),
-      prisma.deal.count(),
-      prisma.user.count({ where: windowWhere }),
-      prisma.user.count({ where: { role: "athlete", ...windowWhere } }),
-      prisma.user.count({ where: { role: "business", ...windowWhere } }),
-      prisma.deal.count({ where: windowWhere }),
-      priorWhere ? prisma.user.count({ where: priorWhere }) : 0,
-      priorWhere ? prisma.user.count({ where: { role: "athlete", ...priorWhere } }) : 0,
-      priorWhere ? prisma.user.count({ where: { role: "business", ...priorWhere } }) : 0,
-      priorWhere ? prisma.deal.count({ where: priorWhere }) : 0,
-      prisma.deal.aggregate({ where: feeWhere(start, null), _sum: { platformFeeAmount: true } }),
-      prior && start ? prisma.deal.aggregate({ where: feeWhere(prior, start), _sum: { platformFeeAmount: true } }) : Promise.resolve({ _sum: { platformFeeAmount: 0 } }),
-      prisma.user.findMany({ where: windowWhere, orderBy: { createdAt: "desc" }, take: 6, select: { id: true, name: true, role: true, createdAt: true } }),
-      prisma.deal.findMany({
-        where: windowWhere,
-        orderBy: { createdAt: "desc" },
-        take: 6,
-        select: { id: true, createdAt: true, compensationAmount: true, business: { select: { name: true, businessName: true } } },
-      }),
-      prisma.message.findMany({
-        where: { system: true, ...windowWhere, NOT: { body: "Deal created and invitation sent." } },
-        orderBy: { createdAt: "desc" },
-        take: 6,
-        select: {
-          id: true,
-          body: true,
-          createdAt: true,
-          dealId: true,
-          deal: { select: { dealType: true, business: { select: { name: true, businessName: true } }, athlete: { select: { name: true } } } },
-        },
-      }),
-    ]);
-
+  const [totals, recentPeople, recentDeals, recentMessages] = await Promise.all([
+    prisma.$queryRaw<Totals[]>`
+      SELECT
+        (SELECT COUNT(*) FROM "User") AS "users",
+        (SELECT COUNT(*) FROM "User" WHERE "role" = 'athlete') AS "athletes",
+        (SELECT COUNT(*) FROM "User" WHERE "role" = 'business') AS "businesses",
+        (SELECT COUNT(*) FROM "Deal") AS "deals",
+        (SELECT COUNT(*) FROM "User" WHERE "createdAt" >= ${from} AND "createdAt" < ${until}) AS "usersNow",
+        (SELECT COUNT(*) FROM "User" WHERE "role" = 'athlete' AND "createdAt" >= ${from} AND "createdAt" < ${until}) AS "athletesNow",
+        (SELECT COUNT(*) FROM "User" WHERE "role" = 'business' AND "createdAt" >= ${from} AND "createdAt" < ${until}) AS "businessesNow",
+        (SELECT COUNT(*) FROM "Deal" WHERE "createdAt" >= ${from} AND "createdAt" < ${until}) AS "dealsNow",
+        (SELECT COUNT(*) FROM "User" WHERE "createdAt" >= ${priorFrom} AND "createdAt" < ${priorUntil}) AS "usersPrev",
+        (SELECT COUNT(*) FROM "User" WHERE "role" = 'athlete' AND "createdAt" >= ${priorFrom} AND "createdAt" < ${priorUntil}) AS "athletesPrev",
+        (SELECT COUNT(*) FROM "User" WHERE "role" = 'business' AND "createdAt" >= ${priorFrom} AND "createdAt" < ${priorUntil}) AS "businessesPrev",
+        (SELECT COUNT(*) FROM "Deal" WHERE "createdAt" >= ${priorFrom} AND "createdAt" < ${priorUntil}) AS "dealsPrev",
+        (SELECT COALESCE(SUM("platformFeeAmount"), 0) FROM "Deal" WHERE "paymentStatus" IN ('paid_escrowed', 'released') AND (("paidAt" >= ${from} AND "paidAt" < ${until}) OR ("paidAt" IS NULL AND "createdAt" >= ${from} AND "createdAt" < ${until}))) AS "feesNow",
+        (SELECT COALESCE(SUM("platformFeeAmount"), 0) FROM "Deal" WHERE "paymentStatus" IN ('paid_escrowed', 'released') AND (("paidAt" >= ${priorFrom} AND "paidAt" < ${priorUntil}) OR ("paidAt" IS NULL AND "createdAt" >= ${priorFrom} AND "createdAt" < ${priorUntil}))) AS "feesPrev"
+    `,
+    prisma.user.findMany({ where: windowWhere, orderBy: { createdAt: "desc" }, take: 6, select: { id: true, name: true, role: true, createdAt: true } }),
+    prisma.deal.findMany({
+      where: windowWhere,
+      orderBy: { createdAt: "desc" },
+      take: 6,
+      select: { id: true, createdAt: true, compensationAmount: true, business: { select: { name: true, businessName: true } } },
+    }),
+    prisma.message.findMany({
+      where: { system: true, ...windowWhere, NOT: { body: "Deal created and invitation sent." } },
+      orderBy: { createdAt: "desc" },
+      take: 6,
+      select: {
+        id: true,
+        body: true,
+        createdAt: true,
+        dealId: true,
+        deal: { select: { dealType: true, business: { select: { name: true, businessName: true } }, athlete: { select: { name: true } } } },
+      },
+    }),
+  ]);
+  const count = totals[0];
   const cards = [
-    { href: "/admin/users", label: "Total users", icon: "users", count: users, current: usersNow, prior: usersPrev },
-    { href: "/admin/athletes", label: "Athletes", icon: "athletes", count: athletes, current: athletesNow, prior: athletesPrev },
-    { href: "/admin/businesses", label: "Businesses", icon: "businesses", count: businesses, current: businessesNow, prior: businessesPrev },
-    { href: "/admin/deals", label: "Deals", icon: "deals", count: deals, current: dealsNow, prior: dealsPrev },
+    { href: "/admin/users", label: "Total users", icon: "users", count: num(count?.users), current: num(count?.usersNow), prior: num(count?.usersPrev) },
+    { href: "/admin/athletes", label: "Athletes", icon: "athletes", count: num(count?.athletes), current: num(count?.athletesNow), prior: num(count?.athletesPrev) },
+    { href: "/admin/businesses", label: "Businesses", icon: "businesses", count: num(count?.businesses), current: num(count?.businessesNow), prior: num(count?.businessesPrev) },
+    { href: "/admin/deals", label: "Deals", icon: "deals", count: num(count?.deals), current: num(count?.dealsNow), prior: num(count?.dealsPrev) },
   ];
-  const fees = feesNow._sum.platformFeeAmount ?? 0;
-  const priorFees = feesPrev._sum.platformFeeAmount ?? 0;
+  const fees = num(count?.feesNow);
+  const priorFees = num(count?.feesPrev);
   const activity = [
     ...recentPeople.map((person) => ({
       id: `user-${person.id}`,
