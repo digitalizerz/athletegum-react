@@ -18,56 +18,89 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
   const start = days ? new Date(Date.now() - days * 86400000) : null;
   const prior = days ? new Date(Date.now() - days * 2 * 86400000) : null;
 
-  const [people, deals, charged, messages] = await Promise.all([
-    prisma.user.findMany({ select: { id: true, name: true, email: true, role: true, createdAt: true } }),
-    prisma.deal.findMany({ include: { business: true, athlete: true }, orderBy: { createdAt: "desc" } }),
-    prisma.deal.findMany({ where: { paymentStatus: { in: ["paid_escrowed", "released"] } }, select: { platformFeeAmount: true, paidAt: true, createdAt: true } }),
-    prisma.message.findMany({ where: { system: true }, orderBy: { createdAt: "desc" }, take: 8, include: { deal: { include: { business: true, athlete: true } } } }),
-  ]);
+  const windowWhere = start ? { createdAt: { gte: start } } : {};
+  const priorWhere = prior && start ? { createdAt: { gte: prior, lt: start } } : null;
+  const paid = { paymentStatus: { in: ["paid_escrowed", "released"] } };
+  const feeWhere = (from: Date | null, until: Date | null) => ({
+    ...paid,
+    ...(from || until
+      ? {
+          OR: [
+            { paidAt: { ...(from ? { gte: from } : {}), ...(until ? { lt: until } : {}) } },
+            { paidAt: null, createdAt: { ...(from ? { gte: from } : {}), ...(until ? { lt: until } : {}) } },
+          ],
+        }
+      : {}),
+  });
 
-  const inWindow = (date: Date) => !start || date >= start;
-  const inPrior = (date: Date) => Boolean(prior && start && date >= prior && date < start);
-  const groups = {
-    users: people,
-    athletes: people.filter((person) => person.role === "athlete"),
-    businesses: people.filter((person) => person.role === "business"),
-    deals,
-  };
+  const [users, athletes, businesses, deals, usersNow, athletesNow, businessesNow, dealsNow, usersPrev, athletesPrev, businessesPrev, dealsPrev, feesNow, feesPrev, recentPeople, recentDeals, recentMessages] =
+    await Promise.all([
+      prisma.user.count(),
+      prisma.user.count({ where: { role: "athlete" } }),
+      prisma.user.count({ where: { role: "business" } }),
+      prisma.deal.count(),
+      prisma.user.count({ where: windowWhere }),
+      prisma.user.count({ where: { role: "athlete", ...windowWhere } }),
+      prisma.user.count({ where: { role: "business", ...windowWhere } }),
+      prisma.deal.count({ where: windowWhere }),
+      priorWhere ? prisma.user.count({ where: priorWhere }) : 0,
+      priorWhere ? prisma.user.count({ where: { role: "athlete", ...priorWhere } }) : 0,
+      priorWhere ? prisma.user.count({ where: { role: "business", ...priorWhere } }) : 0,
+      priorWhere ? prisma.deal.count({ where: priorWhere }) : 0,
+      prisma.deal.aggregate({ where: feeWhere(start, null), _sum: { platformFeeAmount: true } }),
+      prior && start ? prisma.deal.aggregate({ where: feeWhere(prior, start), _sum: { platformFeeAmount: true } }) : Promise.resolve({ _sum: { platformFeeAmount: 0 } }),
+      prisma.user.findMany({ where: windowWhere, orderBy: { createdAt: "desc" }, take: 6, select: { id: true, name: true, role: true, createdAt: true } }),
+      prisma.deal.findMany({
+        where: windowWhere,
+        orderBy: { createdAt: "desc" },
+        take: 6,
+        select: { id: true, createdAt: true, compensationAmount: true, business: { select: { name: true, businessName: true } } },
+      }),
+      prisma.message.findMany({
+        where: { system: true, ...windowWhere, NOT: { body: "Deal created and invitation sent." } },
+        orderBy: { createdAt: "desc" },
+        take: 6,
+        select: {
+          id: true,
+          body: true,
+          createdAt: true,
+          dealId: true,
+          deal: { select: { dealType: true, business: { select: { name: true, businessName: true } }, athlete: { select: { name: true } } } },
+        },
+      }),
+    ]);
+
   const cards = [
-    { href: "/admin/users", label: "Total users", icon: "users", count: groups.users.length, current: groups.users.filter((person) => inWindow(person.createdAt)).length, prior: groups.users.filter((person) => inPrior(person.createdAt)).length },
-    { href: "/admin/athletes", label: "Athletes", icon: "athletes", count: groups.athletes.length, current: groups.athletes.filter((person) => inWindow(person.createdAt)).length, prior: groups.athletes.filter((person) => inPrior(person.createdAt)).length },
-    { href: "/admin/businesses", label: "Businesses", icon: "businesses", count: groups.businesses.length, current: groups.businesses.filter((person) => inWindow(person.createdAt)).length, prior: groups.businesses.filter((person) => inPrior(person.createdAt)).length },
-    { href: "/admin/deals", label: "Deals", icon: "deals", count: groups.deals.length, current: groups.deals.filter((deal) => inWindow(deal.createdAt)).length, prior: groups.deals.filter((deal) => inPrior(deal.createdAt)).length },
+    { href: "/admin/users", label: "Total users", icon: "users", count: users, current: usersNow, prior: usersPrev },
+    { href: "/admin/athletes", label: "Athletes", icon: "athletes", count: athletes, current: athletesNow, prior: athletesPrev },
+    { href: "/admin/businesses", label: "Businesses", icon: "businesses", count: businesses, current: businessesNow, prior: businessesPrev },
+    { href: "/admin/deals", label: "Deals", icon: "deals", count: deals, current: dealsNow, prior: dealsPrev },
   ];
-  const fees = charged.filter((deal) => inWindow(deal.paidAt ?? deal.createdAt)).reduce((sum, deal) => sum + deal.platformFeeAmount, 0);
-  const priorFees = charged.filter((deal) => inPrior(deal.paidAt ?? deal.createdAt)).reduce((sum, deal) => sum + deal.platformFeeAmount, 0);
-
+  const fees = feesNow._sum.platformFeeAmount ?? 0;
+  const priorFees = feesPrev._sum.platformFeeAmount ?? 0;
   const activity = [
-    ...people.map((person) => ({
+    ...recentPeople.map((person) => ({
       id: `user-${person.id}`,
       at: person.createdAt,
       title: person.role === "athlete" ? "Athlete registered" : person.role === "business" ? "Business registered" : "Admin account added",
       detail: person.name,
       href: `/admin/users/${person.id}`,
     })),
-    ...deals.map((deal) => ({
+    ...recentDeals.map((deal) => ({
       id: `deal-${deal.id}`,
       at: deal.createdAt,
       title: "Deal opened",
       detail: `${deal.business.businessName || deal.business.name} · ${money(deal.compensationAmount)}`,
       href: `/admin/deals/${deal.id}`,
     })),
-    ...messages
-      .filter((message) => message.body !== "Deal created and invitation sent.")
-      .map((message) => ({
-        id: `message-${message.id}`,
-        at: message.createdAt,
-        title: message.body,
-        detail: `${message.deal.business.businessName || message.deal.business.name}${message.deal.athlete ? ` · ${message.deal.athlete.name}` : ""} · ${dealTypeName(message.deal.dealType)}`,
-        href: `/admin/deals/${message.dealId}`,
-      })),
+    ...recentMessages.map((message) => ({
+      id: `message-${message.id}`,
+      at: message.createdAt,
+      title: message.body,
+      detail: `${message.deal.business.businessName || message.deal.business.name}${message.deal.athlete ? ` · ${message.deal.athlete.name}` : ""} · ${dealTypeName(message.deal.dealType)}`,
+      href: `/admin/deals/${message.dealId}`,
+    })),
   ]
-    .filter((item) => inWindow(item.at))
     .sort((a, b) => b.at.getTime() - a.at.getTime())
     .slice(0, 6);
 

@@ -1,17 +1,15 @@
 import { requireUser } from "@/app/actions/auth";
 import { WorkspaceFrame } from "@/components/athlete-workspace";
-import { prisma } from "@/lib/prisma";
 import { getStripe } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await requireUser("admin");
-  const user = await prisma.user.findUnique({ where: { id: session.id } });
 
   return (
     <WorkspaceFrame
-      name={user?.name ?? session.name}
+      name={session.name}
       photo={null}
       subtitle="Platform control"
       unread={0}

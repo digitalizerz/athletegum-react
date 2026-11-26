@@ -16,7 +16,7 @@ const credentials = z.object({
   confirm: z.string(),
 });
 
-export type AuthState = { error: string; sent?: boolean; saved?: boolean };
+export type AuthState = { error: string; sent?: boolean; saved?: boolean; href?: string };
 
 export async function registerBusiness(_prev: AuthState, formData: FormData): Promise<AuthState> {
   const parsed = credentials.safeParse({
@@ -46,7 +46,7 @@ export async function registerBusiness(_prev: AuthState, formData: FormData): Pr
   });
 
   await setSession({ id: user.id, email: user.email, name: user.name, role: "business" });
-  redirect("/dashboard");
+  return { error: "", href: "/dashboard" };
 }
 
 export async function registerAthlete(_prev: AuthState, formData: FormData): Promise<AuthState> {
@@ -76,7 +76,7 @@ export async function registerAthlete(_prev: AuthState, formData: FormData): Pro
   });
 
   await setSession({ id: user.id, email: user.email, name: user.name, role: "athlete" });
-  redirect("/athlete/dashboard");
+  return { error: "", href: "/athlete/dashboard" };
 }
 
 export async function login(_prev: AuthState, formData: FormData): Promise<AuthState> {
@@ -102,7 +102,8 @@ export async function login(_prev: AuthState, formData: FormData): Promise<AuthS
   const role = user.role === "admin" ? "admin" : expected;
   await setSession({ id: user.id, email: user.email, name: user.name, role });
   const next = role === "business" ? safeNext(formData.get("next")) : null;
-  redirect(next ?? (role === "athlete" ? "/athlete/dashboard" : role === "admin" ? "/admin" : "/dashboard"));
+  const href = next ?? (role === "athlete" ? "/athlete/dashboard" : role === "admin" ? "/admin" : "/dashboard");
+  return { error: "", href };
 }
 
 function safeNext(value: FormDataEntryValue | null) {

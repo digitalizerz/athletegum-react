@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useRouter } from "next/navigation";
+import { useActionState, useEffect } from "react";
 import type { AuthState } from "@/app/actions/auth";
 
 const empty: AuthState = { error: "" };
@@ -22,7 +23,12 @@ export function AuthForm({
   next?: string;
   children: React.ReactNode;
 }) {
+  const router = useRouter();
   const [state, formAction, pending] = useActionState(action, empty);
+  useEffect(() => {
+    if (state.href) router.push(state.href);
+  }, [router, state.href]);
+  const waiting = pending || Boolean(state.href);
 
   return (
     <form action={formAction} className="mx-auto w-full max-w-md border-2 border-white bg-black p-8 text-white">
@@ -35,10 +41,10 @@ export function AuthForm({
         {state.error ? <p className="border border-white/30 px-3 py-2 text-sm">{state.error}</p> : null}
         {state.sent ? <p className="border border-white/30 px-3 py-2 text-sm">If an account exists for that email, a reset link is on its way. It expires in 30 minutes.</p> : null}
         <button
-          disabled={pending}
+          disabled={waiting}
           className="w-full bg-white px-4 py-3 text-sm font-semibold text-black hover:bg-zinc-100 disabled:opacity-60"
         >
-          {pending ? "Please wait…" : submitLabel}
+          {waiting ? "Please wait…" : submitLabel}
         </button>
       </div>
     </form>
