@@ -3,7 +3,7 @@ import Link from "next/link";
 const steps = [
   ["Create a Deal", "Set deliverables, timelines, and payment terms in minutes."],
   ["Track Progress", "Monitor every milestone with messages, submissions, and revisions."],
-  ["Receive Pay", "Athletes get paid when the work is approved. Stripe payouts are the next piece of this rebuild."],
+  ["Receive Pay", "Athletes get paid when the work is approved. The payout goes to their Stripe account."],
 ];
 
 const features = [

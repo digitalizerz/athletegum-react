@@ -31,8 +31,9 @@ model User {
   isActive           Boolean  @default(true)
   subscriptionPlan   String   @default("free")
   subscriptionStatus String   @default("inactive")
-  stripeCustomerId   String?
-  stripeAccountId    String?
+  stripeCustomerId     String?
+  stripeAccountId      String?
+  stripeSubscriptionId String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -102,6 +103,8 @@ model Deal {
   paymentStatus           String    @default("unpaid")
   stripeCheckoutSessionId String?
   stripePaymentIntentId   String?
+  stripeTransferId        String?
+  stripeInvoiceId         String?
   paidAt                  DateTime?
   token                   String    @unique
   archivedAt         DateTime?

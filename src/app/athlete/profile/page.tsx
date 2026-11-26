@@ -21,7 +21,7 @@ export default async function AthleteProfilePage() {
       <p className="text-xs font-semibold tracking-[0.18em] text-black/40">SETTINGS</p>
       <h1 className="mt-2 text-4xl font-bold tracking-tight">Athlete profile</h1>
       <p className="mt-2 max-w-2xl text-black/60">
-        Manage the name, school, photo, and social handles businesses see. Payout setup is added when Stripe Connect is connected.
+        Manage the name, school, photo, and social handles businesses see. Payout setup is on the earnings page.
       </p>
       <div className="mt-6">
         <AthleteProfileForm

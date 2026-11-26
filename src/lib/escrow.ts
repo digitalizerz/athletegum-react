@@ -3,7 +3,7 @@ import { dealTypeName, money, toCents } from "@/lib/deals";
 import { sendDealInvitation } from "@/lib/mail";
 import { prisma } from "@/lib/prisma";
 import { appOrigin } from "@/lib/app-origin";
-import { requireStripe } from "@/lib/stripe";
+import { integrationLabel, requireStripe } from "@/lib/stripe";
 
 export async function createDealCheckout(dealId: string) {
   const stripe = requireStripe();
@@ -48,6 +48,15 @@ export async function createDealCheckout(dealId: string) {
     ],
     metadata: { dealId: deal.id },
     payment_intent_data: { metadata: { dealId: deal.id } },
+    invoice_creation: {
+      enabled: true,
+      invoice_data: {
+        description: `${dealTypeName(deal.dealType)} deal`,
+        footer: "AthleteGum",
+        metadata: { dealId: deal.id },
+      },
+    },
+    integration_identifier: integrationLabel("deal"),
     success_url: `${origin}/dashboard/deals/${deal.id}?checkout=success`,
     cancel_url: `${origin}/dashboard/deals/${deal.id}?checkout=cancel`,
   });
@@ -71,6 +80,7 @@ export async function settlePaidCheckout(session: Stripe.Checkout.Session) {
 
   const paymentIntentId =
     typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id ?? null;
+  const invoiceId = typeof session.invoice === "string" ? session.invoice : session.invoice?.id ?? null;
 
   const updated = await prisma.deal.updateMany({
     where: { id: deal.id, status: "draft", paymentStatus: "unpaid" },
@@ -78,6 +88,7 @@ export async function settlePaidCheckout(session: Stripe.Checkout.Session) {
       status: "pending",
       paymentStatus: "paid_escrowed",
       stripePaymentIntentId: paymentIntentId,
+      stripeInvoiceId: invoiceId,
       paidAt: new Date(),
     },
   });

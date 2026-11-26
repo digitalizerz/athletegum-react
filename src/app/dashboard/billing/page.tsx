@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { requireUser } from "@/app/actions/auth";
+import { openBillingPortal, subscribeToPlan } from "@/app/actions/billing";
+import { syncCustomerSubscription } from "@/lib/billing";
 import { campaignStatus, dealTypeName, effectivePlan, formatFeePercent, fundingLabel, maxActiveDeals, money, platformFeePercent } from "@/lib/deals";
 import { getFeeSchedule } from "@/lib/fees";
 import { prisma } from "@/lib/prisma";
+import { getStripe } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
 
@@ -12,9 +15,19 @@ const PLANS = [
   { id: "growth", name: "Growth", price: "$99", detail: "Unlimited active deals." },
 ] as const;
 
-export default async function BillingPage() {
+export default async function BillingPage({ searchParams }: { searchParams: Promise<{ checkout?: string }> }) {
   const session = await requireUser("business");
-  const user = await prisma.user.findUnique({ where: { id: session.id } });
+  const query = await searchParams;
+  let user = await prisma.user.findUnique({ where: { id: session.id } });
+  if (user?.stripeCustomerId && getStripe()) {
+    try {
+      await syncCustomerSubscription(user.stripeCustomerId);
+      user = await prisma.user.findUnique({ where: { id: session.id } });
+    } catch (error) {
+      console.error(error);
+    }
+  }
+  const paymentsReady = Boolean(getStripe());
   const plan = user ? effectivePlan(user.subscriptionPlan, user.subscriptionStatus) : "free";
   const rates = await getFeeSchedule();
   const fee = formatFeePercent(user ? platformFeePercent(user.subscriptionPlan, user.subscriptionStatus, rates) : rates.free);
@@ -54,8 +67,13 @@ export default async function BillingPage() {
         </article>
         <article className="rounded-3xl border border-black/10 bg-white p-6">
           <p className="text-sm text-black/50">Payment method</p>
-          <p className="mt-3 text-lg font-semibold">No card on file</p>
-          <p className="mt-2 text-sm leading-6 text-black/55">Cards are entered when you fund a deal. AthleteGum does not store a card for the subscription yet.</p>
+          <p className="mt-3 text-lg font-semibold">{user?.stripeSubscriptionId ? "Card on the subscription" : "No subscription card"}</p>
+          <p className="mt-2 text-sm leading-6 text-black/55">Deal funding still asks for a card at checkout. A subscription card is saved only after you choose Pro or Growth.</p>
+          {user?.stripeSubscriptionId ? (
+            <form action={openBillingPortal} className="mt-4">
+              <button className="rounded-full bg-zinc-950 px-4 py-2 text-sm font-semibold text-white">Manage billing</button>
+            </form>
+          ) : null}
         </article>
       </section>
 
@@ -75,6 +93,10 @@ export default async function BillingPage() {
         </div>
       </section>
 
+      {query.checkout === "unavailable" ? <p className="mt-4 text-sm text-black/60">Card payments are not set up on this server yet.</p> : null}
+      {query.checkout === "error" ? <p className="mt-4 text-sm text-black/60">The subscription page could not be opened. Try again.</p> : null}
+      {query.checkout === "cancel" ? <p className="mt-4 text-sm text-black/60">Subscription checkout was canceled. Your plan is unchanged.</p> : null}
+
       <section id="plans" className="mt-4 grid gap-4 lg:grid-cols-3">
         {PLANS.map((item) => {
           const selected = item.id === plan;
@@ -84,7 +106,11 @@ export default async function BillingPage() {
               <p className="mt-2 text-4xl font-bold">{item.price}<span className="text-base font-medium opacity-70">/mo</span></p>
               <p className="mt-4 text-sm">{formatFeePercent(rates[item.id])}% platform fee</p>
               <p className="mt-1 text-sm opacity-70">{item.detail}</p>
-              <p className="mt-6 text-sm font-semibold">{selected ? "Current plan" : "Subscription checkout is not connected yet."}</p>
+              {selected ? <p className="mt-6 text-sm font-semibold">Current plan</p> : item.id === "free" ? <p className="mt-6 text-sm font-semibold">Included</p> : paymentsReady ? (
+                <form action={subscribeToPlan.bind(null, item.id)} className="mt-6">
+                  <button className={`rounded-full px-4 py-2 text-sm font-semibold ${selected ? "bg-white text-black" : "bg-zinc-950 text-white"}`}>Choose {item.name}</button>
+                </form>
+              ) : <p className="mt-6 text-sm font-semibold">Card payments are not set up on this server yet.</p>}
             </article>
           );
         })}

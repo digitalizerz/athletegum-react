@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireUser } from "@/app/actions/auth";
+import { releaseAthletePayout } from "@/lib/connect";
 import { createDealCheckout } from "@/lib/escrow";
 import {
   DEAL_TYPES,
@@ -235,18 +236,19 @@ export async function approveDeal(dealId: string) {
   });
   if (!deal) return;
 
+  await prisma.deal.update({ where: { id: deal.id }, data: { status: "approved" } });
+  const payout = await releaseAthletePayout(deal.id);
   await prisma.$transaction([
-    prisma.deal.update({ where: { id: deal.id }, data: { status: "approved" } }),
     prisma.message.create({
-      data: { dealId: deal.id, body: "Business approved the work.", system: true },
+      data: { dealId: deal.id, body: `Business approved the work. ${payout.note}`, system: true },
     }),
     ...(deal.athleteId
       ? [
           prisma.notification.create({
             data: {
               userId: deal.athleteId,
-              title: "Work approved",
-              body: "Your work was approved. The payment stays held until the payout is sent.",
+              title: payout.sent ? "Payout sent" : "Work approved",
+              body: payout.note,
               href: `/athlete/deals/${deal.id}`,
             },
           }),

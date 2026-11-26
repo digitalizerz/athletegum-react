@@ -18,3 +18,16 @@ export function requireStripe() {
   if (!stripe) throw new PaymentsNotConfiguredError();
   return stripe;
 }
+
+export function publishableKey() {
+  return process.env.STRIPE_PUBLISHABLE_KEY || null;
+}
+
+export function integrationLabel(flow: string) {
+  const alphabet = "abcdefghijklmnopqrstuvwxyz";
+  let suffix = "";
+  for (let index = 0; index < 8; index += 1) {
+    suffix += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+  return `athletegum_${flow}_${suffix}`;
+}

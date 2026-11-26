@@ -420,7 +420,7 @@ function approvalState(status: string, athlete: string) {
 function payoutState(status: string, paymentStatus: string, payout: number, athlete: string) {
   if (paymentStatus === "released") return { title: "Paid out", label: "Sent", detail: `${money(payout)} was sent to ${athlete}.` };
   if (status === "approved" && paymentStatus === "paid_escrowed") {
-    return { title: "Paid out", label: "Processing", detail: `${money(payout)} stays held until Stripe Connect sends the payout.` };
+    return { title: "Paid out", label: "Processing", detail: `${money(payout)} stays held until the athlete's payout account can receive it.` };
   }
   if (status === "approved") return { title: "Paid out", label: "Nothing to send", detail: "The work is approved, but the card was not charged." };
   return { title: "Paid out", label: "Not sent", detail: `${athlete} is paid ${money(payout)} after you approve the work.` };

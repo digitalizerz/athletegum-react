@@ -31,7 +31,7 @@ export default async function PricingPage() {
             Simple, Fair <span className="underline decoration-white decoration-4 underline-offset-8">Pricing</span> for NIL Deals
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-white/80">
-            Athletes use AthleteGum for free. Businesses pick the plan that matches deal volume. Subscription checkout returns when Stripe is connected.
+            Athletes use AthleteGum for free. Businesses pick the plan that matches deal volume, then subscribe from billing.
           </p>
         </div>
       </section>

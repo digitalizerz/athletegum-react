@@ -20,7 +20,7 @@ export default function AboutPage() {
       </section>
       <section className="mx-auto max-w-3xl space-y-6 px-6 py-16 text-lg text-white/80">
         <p>The product is being rebuilt as a Next.js app so it can run on Vercel. Accounts, deals, invitations, messages, and approvals are live in this version.</p>
-        <p>Stripe card payments, Connect payouts, and subscription billing are the next layer. Until those are connected, deals record the fee split but do not charge a card.</p>
+        <p>Card charges, athlete payouts, and Pro or Growth subscriptions run through Stripe. Until the server has Stripe keys, deals record the fee split but do not charge a card.</p>
         <p>Questions go to business@athletegum.com.</p>
       </section>
       <section className="relative min-h-[420px] overflow-hidden">

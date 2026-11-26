@@ -1,15 +1,22 @@
 import Link from "next/link";
 import { requireUser } from "@/app/actions/auth";
+import { openPayoutDashboard, startPayoutSetup } from "@/app/actions/connect";
+import { ConnectOnboarding } from "@/components/connect-onboarding";
+import { transfersActive } from "@/lib/connect";
 import { campaignStatus, dealTypeName, money } from "@/lib/deals";
 import { prisma } from "@/lib/prisma";
+import { getStripe, publishableKey } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
 
-export default async function AthleteEarningsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+export default async function AthleteEarningsPage({ searchParams }: { searchParams: Promise<{ tab?: string; setup?: string; reason?: string }> }) {
   const session = await requireUser("athlete");
   const query = await searchParams;
   const tab = query.tab === "payouts" ? "payouts" : "deals";
   const user = await prisma.user.findUnique({ where: { id: session.id } });
+  const paymentsReady = Boolean(getStripe());
+  const key = publishableKey();
+  const payoutReady = user?.stripeAccountId ? await transfersActive(user.stripeAccountId).catch(() => false) : false;
   const deals = await prisma.deal.findMany({
     where: { athleteId: session.id, status: { in: ["accepted", "completed", "approved"] } },
     orderBy: { updatedAt: "desc" },
@@ -23,7 +30,7 @@ export default async function AthleteEarningsPage({ searchParams }: { searchPara
   return (
     <div>
       <h1 className="text-4xl font-bold tracking-tight">Earnings & payouts</h1>
-      <p className="mt-2 max-w-2xl text-black/60">Your share of each deal, what the business has approved, and what has been sent. Stripe Connect is not connected, so nothing can be paid out yet.</p>
+      <p className="mt-2 max-w-2xl text-black/60">Your share of each deal, what the business has approved, and what has been sent. Approved money is paid to the payout account below.</p>
 
       <section className="mt-6 grid gap-4 lg:grid-cols-3">
         <article className="rounded-3xl bg-zinc-950 p-5 text-white">
@@ -78,7 +85,7 @@ export default async function AthleteEarningsPage({ searchParams }: { searchPara
             </ul>
           )
         ) : payouts.length === 0 ? (
-          <p className="px-5 py-10 text-sm text-black/60">No payouts yet. Approved money stays recorded here until Stripe Connect can send it.</p>
+          <p className="px-5 py-10 text-sm text-black/60">No payouts yet. Approved money stays here until your payout account can receive it.</p>
         ) : (
           <ul>
             {payouts.map((deal) => (
@@ -97,21 +104,33 @@ export default async function AthleteEarningsPage({ searchParams }: { searchPara
       <section className="mt-4 grid gap-4 lg:grid-cols-2">
         <article className="rounded-3xl border border-black/10 bg-white p-5">
           <h2 className="font-semibold">Payout account</h2>
-          <p className="mt-1 text-sm text-black/50">Get paid for approved deals through Stripe.</p>
+          <p className="mt-1 text-sm text-black/50">Get paid for approved deals. The business is charged first, and your share is sent after approval.</p>
           <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-black/10 px-4 py-3">
             <span>
-              <span className="block text-sm font-semibold">Stripe Connect</span>
-              <span className="text-sm text-black/50">{user?.stripeAccountId ? "Connected" : "Not connected"}</span>
+              <span className="block text-sm font-semibold">Payouts</span>
+              <span className="text-sm text-black/50">{payoutReady ? "Ready" : user?.stripeAccountId ? "Finish setup" : "Not set up"}</span>
             </span>
-            <span className="rounded-full border border-black/10 px-3 py-1.5 text-xs font-semibold text-black/50">Not available yet</span>
+            {payoutReady ? (
+              <form action={openPayoutDashboard}>
+                <button className="rounded-full bg-zinc-950 px-3 py-1.5 text-xs font-semibold text-white">Open Stripe</button>
+              </form>
+            ) : paymentsReady ? (
+              <form action={startPayoutSetup}>
+                <button className="rounded-full bg-zinc-950 px-3 py-1.5 text-xs font-semibold text-white">{user?.stripeAccountId ? "Continue setup" : "Set up payouts"}</button>
+              </form>
+            ) : <span className="text-xs font-semibold text-black/50">Payments are not set up on this server yet.</span>}
           </div>
+          {query.reason === "liability" ? <p className="mt-3 text-sm text-black/60">Payout accounts can be created after the platform accepts responsibility for negative balances in Stripe.</p> : null}
+          {query.reason === "unavailable" ? <p className="mt-3 text-sm text-black/60">Card payments are not set up on this server yet.</p> : null}
+          {query.reason === "failed" ? <p className="mt-3 text-sm text-black/60">Payout setup could not be started. Try again.</p> : null}
+          {key && user?.stripeAccountId ? <ConnectOnboarding publishableKey={key} showOnboarding={!payoutReady || query.setup === "1"} /> : null}
         </article>
         <article className="rounded-3xl border border-black/10 bg-white p-5">
           <h2 className="font-semibold">How payouts work</h2>
           <ol className="mt-4 space-y-3 text-sm text-black/70">
-            <li className="flex gap-3"><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-zinc-950 text-xs font-semibold text-white">1</span>The business approves the finished work.</li>
-            <li className="flex gap-3"><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-zinc-950 text-xs font-semibold text-white">2</span>Your share is marked approved. It is not sent until Connect is available.</li>
-            <li className="flex gap-3"><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-zinc-950 text-xs font-semibold text-white">3</span>A connected Stripe account is where that payout will go.</li>
+            <li className="flex gap-3"><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-zinc-950 text-xs font-semibold text-white">1</span>The business pays the deal by card. That money stays with AthleteGum.</li>
+            <li className="flex gap-3"><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-zinc-950 text-xs font-semibold text-white">2</span>The business approves the finished work.</li>
+            <li className="flex gap-3"><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-zinc-950 text-xs font-semibold text-white">3</span>Your share is sent to this payout account. The platform fee stays behind.</li>
           </ol>
         </article>
       </section>

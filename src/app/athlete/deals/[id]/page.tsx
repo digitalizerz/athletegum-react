@@ -373,7 +373,7 @@ function approvalState(status: string, company: string) {
 function payoutState(status: string, paymentStatus: string, payout: number) {
   if (paymentStatus === "released") return { title: "Paid out", label: "Sent", detail: `${money(payout)} was sent to you.` };
   if (status === "approved" && paymentStatus === "paid_escrowed") {
-    return { title: "Paid out", label: "Processing", detail: `${money(payout)} stays held until Stripe Connect can send it.` };
+    return { title: "Paid out", label: "Processing", detail: `${money(payout)} stays held until your payout account can receive it.` };
   }
   if (status === "approved") return { title: "Paid out", label: "Nothing to send", detail: "The work is approved, but the card was not charged." };
   return { title: "Paid out", label: "Not sent", detail: `You receive ${money(payout)} after the business approves the work.` };

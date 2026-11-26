@@ -84,6 +84,8 @@ export function fundingLabel(status: string) {
       return "Released";
     case "failed":
       return "Charge failed";
+    case "refunded":
+      return "Refunded";
     default:
       return "Not charged";
   }
@@ -116,6 +118,8 @@ export function paymentLabel(status: string) {
       return "Released to the athlete";
     case "failed":
       return "Payment failed";
+    case "refunded":
+      return "Refunded";
     default:
       return "Not paid";
   }

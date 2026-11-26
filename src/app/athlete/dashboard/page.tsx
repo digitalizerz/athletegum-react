@@ -58,7 +58,7 @@ export default async function AthleteDashboard() {
         <article className="rounded-3xl bg-zinc-950 p-5 text-white">
           <p className="text-sm text-white/60">Total earnings</p>
           <p className="mt-3 text-4xl font-bold tracking-tight">{money(earnings)}</p>
-          <p className="mt-3 text-sm text-white/50">Approved deals. Payouts are sent when Stripe Connect is connected.</p>
+          <p className="mt-3 text-sm text-white/50">Approved deals. Payouts are sent after your payout account is ready.</p>
         </article>
         <article className="rounded-3xl border border-black/10 bg-white p-5">
           <p className="text-sm text-black/50">Active deals</p>
