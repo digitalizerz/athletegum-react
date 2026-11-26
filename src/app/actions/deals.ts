@@ -8,11 +8,14 @@ import { requireUser } from "@/app/actions/auth";
 import { createDealCheckout } from "@/lib/escrow";
 import {
   DEAL_TYPES,
+  dealTypeName,
   maxActiveDeals,
   PLATFORMS,
   platformFeePercent,
   splitCompensation,
 } from "@/lib/deals";
+import { appOrigin } from "@/lib/app-origin";
+import { sendDealAccepted, sendDeliverablesSubmitted, sendRevisionsRequested } from "@/lib/mail";
 import { getFeeSchedule } from "@/lib/fees";
 import { prisma } from "@/lib/prisma";
 import { getStripe, PaymentsNotConfiguredError } from "@/lib/stripe";
@@ -169,6 +172,15 @@ export async function acceptDeal(dealId: string) {
     }),
   ]);
 
+  const origin = await appOrigin();
+  await sendDealAccepted(
+    deal.business.email,
+    deal.business.businessName || deal.business.name,
+    session.name,
+    dealTypeName(deal.dealType).toLowerCase(),
+    `${origin}/dashboard/deals/${deal.id}`,
+  );
+
   revalidatePath(`/athlete/deals/${deal.id}`);
   revalidatePath(`/dashboard/deals/${deal.id}`);
   redirect(`/athlete/deals/${deal.id}`);
@@ -179,7 +191,10 @@ export async function submitDeliverables(dealId: string, _prev: FormState, formD
   const notes = String(formData.get("deliverables") ?? "").trim();
   if (notes.length < 10) return { error: "Describe the work you submitted, at least 10 characters." };
 
-  const deal = await prisma.deal.findFirst({ where: { id: dealId, athleteId: session.id, status: "accepted" } });
+  const deal = await prisma.deal.findFirst({
+    where: { id: dealId, athleteId: session.id, status: "accepted" },
+    include: { business: true },
+  });
   if (!deal) return { error: "This deal is not ready for submission." };
 
   await prisma.$transaction([
@@ -199,6 +214,15 @@ export async function submitDeliverables(dealId: string, _prev: FormState, formD
       },
     }),
   ]);
+
+  const origin = await appOrigin();
+  await sendDeliverablesSubmitted(
+    deal.business.email,
+    deal.business.businessName || deal.business.name,
+    session.name,
+    dealTypeName(deal.dealType).toLowerCase(),
+    `${origin}/dashboard/deals/${deal.id}`,
+  );
 
   revalidatePath(`/athlete/deals/${deal.id}`);
   redirect(`/athlete/deals/${deal.id}`);
@@ -241,6 +265,7 @@ export async function requestRevisions(dealId: string, _prev: FormState, formDat
 
   const deal = await prisma.deal.findFirst({
     where: { id: dealId, businessId: session.id, status: "completed" },
+    include: { athlete: true },
   });
   if (!deal) return { error: "Revisions can only be requested after deliverables are submitted." };
 
@@ -262,6 +287,17 @@ export async function requestRevisions(dealId: string, _prev: FormState, formDat
         ]
       : []),
   ]);
+
+  if (deal.athlete?.email) {
+    const origin = await appOrigin();
+    await sendRevisionsRequested(
+      deal.athlete.email,
+      deal.athlete.name,
+      dealTypeName(deal.dealType).toLowerCase(),
+      notes,
+      `${origin}/athlete/deals/${deal.id}`,
+    );
+  }
 
   revalidatePath(`/dashboard/deals/${deal.id}`);
   redirect(`/dashboard/deals/${deal.id}`);

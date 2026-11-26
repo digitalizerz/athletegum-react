@@ -1,5 +1,6 @@
 import type Stripe from "stripe";
-import { dealTypeName, toCents } from "@/lib/deals";
+import { dealTypeName, money, toCents } from "@/lib/deals";
+import { sendDealInvitation } from "@/lib/mail";
 import { prisma } from "@/lib/prisma";
 import { appOrigin } from "@/lib/app-origin";
 import { requireStripe } from "@/lib/stripe";
@@ -110,6 +111,18 @@ export async function settlePaidCheckout(session: Stripe.Checkout.Session) {
         href: `/athlete/deals/${deal.id}`,
       },
     });
+  }
+
+  if (invite) {
+    const origin = await appOrigin();
+    await sendDealInvitation(
+      invite.athleteEmail,
+      athlete?.name || "there",
+      deal.business.businessName || deal.business.name,
+      dealTypeName(deal.dealType).toLowerCase(),
+      money(deal.athleteNetPayout),
+      athlete ? `${origin}/athlete/deals/${deal.id}` : `${origin}/athlete/login`,
+    );
   }
 }
 

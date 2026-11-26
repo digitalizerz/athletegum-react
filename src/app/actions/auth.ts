@@ -150,7 +150,7 @@ export async function requestPasswordReset(_prev: AuthState, formData: FormData)
         },
       });
       const link = `${await appOrigin()}/reset-password?token=${token}`;
-      const sent = await sendPasswordReset(user.email, link);
+      const sent = await sendPasswordReset(user.email, link, user.name);
       if (!sent) return { error: "The reset email could not be sent. Try again." };
     }
   }
