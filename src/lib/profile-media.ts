@@ -18,8 +18,10 @@ export async function ensureProfileToken(userId: string, current: string | null)
   return profileToken;
 }
 
-export async function saveProfilePhoto(userId: string, file: File, previous: string | null) {
-  if (file.size === 0) return previous;
+type SavedPhoto = { path: string | null } | { error: string };
+
+export async function saveProfilePhoto(userId: string, file: File, previous: string | null): Promise<SavedPhoto> {
+  if (file.size === 0) return { path: previous };
   if (process.env.VERCEL) {
     return { error: "Profile photos cannot be stored on this server yet. Save the profile without a new photo." } as const;
   }
