@@ -1,7 +1,10 @@
 "use server";
 
+import { createHash, randomBytes } from "crypto";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { appOrigin } from "@/lib/app-origin";
+import { mailConfigured, sendPasswordReset } from "@/lib/mail";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import { clearSession, getSession, setSession } from "@/lib/session";
@@ -13,7 +16,7 @@ const credentials = z.object({
   confirm: z.string(),
 });
 
-export type AuthState = { error: string };
+export type AuthState = { error: string; sent?: boolean; saved?: boolean };
 
 export async function registerBusiness(_prev: AuthState, formData: FormData): Promise<AuthState> {
   const parsed = credentials.safeParse({
@@ -68,6 +71,7 @@ export async function registerAthlete(_prev: AuthState, formData: FormData): Pro
       role: "athlete",
       sport: String(formData.get("sport") ?? "").trim() || null,
       school: String(formData.get("school") ?? "").trim() || null,
+      profileToken: randomBytes(16).toString("hex"),
     },
   });
 
@@ -97,7 +101,75 @@ export async function login(_prev: AuthState, formData: FormData): Promise<AuthS
 
   const role = user.role === "admin" ? "admin" : expected;
   await setSession({ id: user.id, email: user.email, name: user.name, role });
-  redirect(role === "athlete" ? "/athlete/dashboard" : "/dashboard");
+  const next = role === "business" ? safeNext(formData.get("next")) : null;
+  redirect(next ?? (role === "athlete" ? "/athlete/dashboard" : role === "admin" ? "/admin" : "/dashboard"));
+}
+
+function safeNext(value: FormDataEntryValue | null) {
+  const path = String(value ?? "");
+  if (!path.startsWith("/dashboard") || path.startsWith("//") || path.includes("\\")) return null;
+  return path;
+}
+
+export async function changePassword(_prev: AuthState, formData: FormData): Promise<AuthState> {
+  const session = await getSession();
+  if (!session) return { error: "Sign in again." };
+  if (session.impersonatorId) return { error: "Return to your own account before changing this password." };
+  const current = String(formData.get("current") ?? "");
+  const password = String(formData.get("password") ?? "");
+  const confirm = String(formData.get("confirm") ?? "");
+  if (password.length < 8) return { error: "Password must be at least 8 characters." };
+  if (password !== confirm) return { error: "Passwords do not match." };
+  const user = await prisma.user.findUnique({ where: { id: session.id } });
+  if (!user || !(await verifyPassword(current, user.passwordHash))) return { error: "The current password is wrong." };
+  await prisma.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(password) } });
+  await prisma.passwordReset.deleteMany({ where: { userId: user.id } });
+  return { error: "", saved: true };
+}
+
+export async function requestPasswordReset(_prev: AuthState, formData: FormData): Promise<AuthState> {
+  if (!mailConfigured()) return { error: "Password reset email is not set up on this server yet." };
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const athlete = formData.get("role") === "athlete";
+  if (!z.email().safeParse(email).success) return { error: "Enter a valid email." };
+  const user = await prisma.user.findUnique({ where: { email } });
+  const matches = user && user.isActive && (athlete ? user.role === "athlete" : user.role === "business" || user.role === "admin");
+  if (matches && user) {
+    const recent = await prisma.passwordReset.findFirst({
+      where: { userId: user.id, createdAt: { gt: new Date(Date.now() - 60_000) } },
+    });
+    if (!recent) {
+      const token = randomBytes(32).toString("hex");
+      await prisma.passwordReset.deleteMany({ where: { userId: user.id } });
+      await prisma.passwordReset.create({
+        data: {
+          userId: user.id,
+          tokenHash: createHash("sha256").update(token).digest("hex"),
+          expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+        },
+      });
+      const link = `${await appOrigin()}/reset-password?token=${token}`;
+      const sent = await sendPasswordReset(user.email, link);
+      if (!sent) return { error: "The reset email could not be sent. Try again." };
+    }
+  }
+  return { error: "", sent: true };
+}
+
+export async function resetPassword(_prev: AuthState, formData: FormData): Promise<AuthState> {
+  const token = String(formData.get("token") ?? "");
+  const password = String(formData.get("password") ?? "");
+  const confirm = String(formData.get("confirm") ?? "");
+  if (password.length < 8) return { error: "Password must be at least 8 characters." };
+  if (password !== confirm) return { error: "Passwords do not match." };
+  const row = token
+    ? await prisma.passwordReset.findUnique({ where: { tokenHash: createHash("sha256").update(token).digest("hex") }, include: { user: true } })
+    : null;
+  if (!row || row.expiresAt.getTime() < Date.now()) return { error: "This reset link is invalid or expired." };
+  await prisma.user.update({ where: { id: row.userId }, data: { passwordHash: await hashPassword(password) } });
+  await prisma.passwordReset.deleteMany({ where: { userId: row.userId } });
+  const login = row.user.role === "athlete" ? "/athlete/login" : "/login";
+  redirect(`${login}?reset=1`);
 }
 
 export async function logout() {
@@ -105,10 +177,16 @@ export async function logout() {
   redirect("/");
 }
 
-export async function requireUser(role: "business" | "athlete") {
+export async function requireUser(role: "business" | "athlete" | "admin") {
   const session = await getSession();
   if (!session) redirect(role === "athlete" ? "/athlete/login" : "/login");
+  if (role === "admin" && session.role !== "admin") {
+    redirect(session.role === "athlete" ? "/athlete/dashboard" : "/dashboard");
+  }
   if (role === "business" && session.role === "athlete") redirect("/athlete/dashboard");
-  if (role === "athlete" && session.role !== "athlete") redirect("/dashboard");
+  if (role === "business" && session.role === "admin") redirect("/admin");
+  if (role === "athlete" && session.role !== "athlete") {
+    redirect(session.role === "admin" ? "/admin" : "/dashboard");
+  }
   return session;
 }

@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
@@ -18,7 +19,15 @@ model User {
   sport              String?
   school             String?
   athleteLevel       String?
+  city               String?
+  bio                String?
+  instagramHandle    String?
+  tiktokHandle       String?
+  twitterHandle      String?
+  youtubeHandle      String?
   username           String?  @unique
+  profileToken       String?  @unique
+  profilePhoto       String?
   isActive           Boolean  @default(true)
   subscriptionPlan   String   @default("free")
   subscriptionStatus String   @default("inactive")
@@ -32,6 +41,45 @@ model User {
   invitations   DealInvitation[]
   messages      Message[]
   notifications Notification[]
+  savedAthletes SavedAthlete[]   @relation("BusinessSaves")
+  savesReceived SavedAthlete[]   @relation("AthleteSaves")
+  auditLogs      AuditLog[]
+  passwordResets PasswordReset[]
+}
+
+model PasswordReset {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  adminId    String?
+  admin      User?    @relation(fields: [adminId], references: [id], onDelete: SetNull)
+  action     String
+  entityType String?
+  entityId   String?
+  summary    String
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model SavedAthlete {
+  id         String   @id @default(cuid())
+  businessId String
+  athleteId  String
+  business   User     @relation("BusinessSaves", fields: [businessId], references: [id], onDelete: Cascade)
+  athlete    User     @relation("AthleteSaves", fields: [athleteId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([businessId, athleteId])
 }
 
 model Deal {
@@ -46,6 +94,7 @@ model Deal {
   platformFeeAmount  Float     @default(0)
   athleteFeeAmount   Float     @default(0)
   athleteNetPayout   Float     @default(0)
+  startsAt           DateTime?
   deadline           DateTime?
   notes              String?
   deliverables       String?
@@ -55,6 +104,7 @@ model Deal {
   stripePaymentIntentId   String?
   paidAt                  DateTime?
   token                   String    @unique
+  archivedAt         DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -83,6 +133,14 @@ model Message {
   body      String
   system    Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+model FeeSchedule {
+  id            String   @id
+  freePercent   Float
+  proPercent    Float
+  growthPercent Float
+  updatedAt     DateTime @updatedAt
 }
 
 model Notification {

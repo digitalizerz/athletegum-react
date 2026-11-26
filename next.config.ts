@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1"],
+  serverExternalPackages: ["@prisma/client", "prisma"],
   turbopack: {
     root: path.dirname(fileURLToPath(import.meta.url)),
     rules: {

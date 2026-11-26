@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { formatFeePercent } from "@/lib/deals";
+import { getFeeSchedule } from "@/lib/fees";
 export const metadata: Metadata = { title: "Pricing — AthleteGum" };
 
-const businessPlans = [
-  { name: "Free", price: "$0", fee: "10% platform fee", points: ["Up to 3 active deals", "Escrow records", "Deliverable approval", "Messages"], href: "/register", label: "Get Started Free", featured: false },
-  { name: "Pro", price: "$49", fee: "8% platform fee", points: ["Unlimited deals", "Lower platform fee", "Advanced tracking", "Receipts"], href: "/register", label: "Choose Pro", featured: true },
-  { name: "Growth", price: "$99", fee: "6% platform fee", points: ["Lowest fee tier", "Built for teams", "Deal history", "Priority workflow"], href: "/register", label: "Choose Growth", featured: false },
-];
-
-export default function PricingPage() {
+export default async function PricingPage() {
+  const rates = await getFeeSchedule();
+  const businessPlans = [
+    { name: "Free", price: "$0", fee: `${formatFeePercent(rates.free)}% platform fee`, points: ["Up to 3 active deals", "Escrow records", "Deliverable approval", "Messages"], href: "/register", label: "Get Started Free", featured: false },
+    { name: "Pro", price: "$49", fee: `${formatFeePercent(rates.pro)}% platform fee`, points: ["Unlimited deals", "Lower platform fee", "Advanced tracking", "Receipts"], href: "/register", label: "Choose Pro", featured: true },
+    { name: "Growth", price: "$99", fee: `${formatFeePercent(rates.growth)}% platform fee`, points: ["Lowest fee tier", "Built for teams", "Deal history", "Priority workflow"], href: "/register", label: "Choose Growth", featured: false },
+  ];
   return (
     <main>
       <section className="relative min-h-[70vh] overflow-hidden border-b border-white/10 px-6 pb-24 pt-20 lg:px-12 lg:pt-28">

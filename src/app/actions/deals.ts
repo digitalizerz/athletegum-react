@@ -13,6 +13,7 @@ import {
   platformFeePercent,
   splitCompensation,
 } from "@/lib/deals";
+import { getFeeSchedule } from "@/lib/fees";
 import { prisma } from "@/lib/prisma";
 import { getStripe, PaymentsNotConfiguredError } from "@/lib/stripe";
 
@@ -21,7 +22,8 @@ export type FormState = { error: string };
 const dealSchema = z.object({
   dealType: z.string(),
   compensation: z.coerce.number().positive("Compensation must be greater than 0."),
-  deadline: z.string().min(1, "Choose a deadline."),
+  startsAt: z.string().min(1, "Choose a start date and time."),
+  deadline: z.string().min(1, "Choose a deadline date and time."),
   athleteEmail: z.email("Enter the athlete's email."),
   notes: z.string().max(2000).optional(),
 });
@@ -34,6 +36,7 @@ export async function createDeal(_prev: FormState, formData: FormData): Promise<
   const parsed = dealSchema.safeParse({
     dealType: formData.get("dealType"),
     compensation: formData.get("compensation"),
+    startsAt: formData.get("startsAt"),
     deadline: formData.get("deadline"),
     athleteEmail: formData.get("athleteEmail"),
     notes: String(formData.get("notes") ?? ""),
@@ -48,12 +51,12 @@ export async function createDeal(_prev: FormState, formData: FormData): Promise<
     return { error: "Choose at least one platform for this deal type." };
   }
 
-  const deadline = new Date(`${parsed.data.deadline}T00:00:00`);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  if (Number.isNaN(deadline.getTime()) || deadline <= today) {
-    return { error: "Deadline must be a future date." };
-  }
+  const startsAt = new Date(parsed.data.startsAt);
+  const deadline = new Date(parsed.data.deadline);
+  if (Number.isNaN(startsAt.getTime())) return { error: "Choose a start date and time." };
+  if (Number.isNaN(deadline.getTime())) return { error: "Choose a deadline date and time." };
+  if (startsAt.getTime() <= Date.now()) return { error: "Start must be in the future." };
+  if (deadline.getTime() <= startsAt.getTime()) return { error: "The deadline must be after the start." };
 
   const athleteEmail = parsed.data.athleteEmail.toLowerCase();
   if (athleteEmail === business.email) return { error: "Invite an athlete, not your own account." };
@@ -70,7 +73,7 @@ export async function createDeal(_prev: FormState, formData: FormData): Promise<
 
   if (!getStripe()) return { error: new PaymentsNotConfiguredError().message };
 
-  const feePercent = platformFeePercent(business.subscriptionPlan, business.subscriptionStatus);
+  const feePercent = platformFeePercent(business.subscriptionPlan, business.subscriptionStatus, await getFeeSchedule());
   const split = splitCompensation(parsed.data.compensation, feePercent);
   const athlete = await prisma.user.findUnique({ where: { email: athleteEmail } });
   const token = randomBytes(16).toString("hex");
@@ -84,6 +87,7 @@ export async function createDeal(_prev: FormState, formData: FormData): Promise<
       platformFeeAmount: split.platformFeeAmount,
       athleteFeeAmount: split.athleteFeeAmount,
       athleteNetPayout: split.athleteNetPayout,
+      startsAt,
       deadline,
       notes: parsed.data.notes?.trim() || null,
       status: "draft",
@@ -287,6 +291,8 @@ export async function postMessage(dealId: string, _prev: FormState, formData: Fo
   }
 
   revalidatePath(`/dashboard/deals/${deal.id}`);
+  revalidatePath("/dashboard/messages");
   revalidatePath(`/athlete/deals/${deal.id}`);
+  revalidatePath("/athlete/messages");
   return { error: "" };
 }

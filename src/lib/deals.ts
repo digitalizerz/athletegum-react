@@ -17,7 +17,9 @@ export const PLATFORMS = [
 
 export type PlanId = "free" | "pro" | "growth";
 
-const PLAN_FEES: Record<PlanId, number> = {
+export type FeeRates = Record<PlanId, number>;
+
+export const DEFAULT_FEE_RATES: FeeRates = {
   free: 10,
   pro: 8,
   growth: 6,
@@ -30,8 +32,12 @@ export function effectivePlan(plan: string, status: string): PlanId {
   return "free";
 }
 
-export function platformFeePercent(plan: string, status: string) {
-  return PLAN_FEES[effectivePlan(plan, status)];
+export function platformFeePercent(plan: string, status: string, rates: FeeRates = DEFAULT_FEE_RATES) {
+  return rates[effectivePlan(plan, status)];
+}
+
+export function formatFeePercent(value: number) {
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value);
 }
 
 export function maxActiveDeals(plan: string, status: string) {
@@ -62,8 +68,44 @@ export function money(amount: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);
 }
 
+export function scheduleLabel(date: Date) {
+  return date.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
 export function toCents(amount: number) {
   return Math.round((amount + Number.EPSILON) * 100);
+}
+
+export function fundingLabel(status: string) {
+  switch (status) {
+    case "paid_escrowed":
+      return "Held";
+    case "released":
+      return "Released";
+    case "failed":
+      return "Charge failed";
+    default:
+      return "Not charged";
+  }
+}
+
+export function campaignStatus(status: string) {
+  switch (status) {
+    case "draft":
+      return "Not sent";
+    case "pending":
+      return "Waiting for athlete";
+    case "accepted":
+      return "In progress";
+    case "completed":
+      return "In review";
+    case "approved":
+      return "Approved";
+    case "cancelled":
+      return "Cancelled";
+    default:
+      return statusLabel(status);
+  }
 }
 
 export function paymentLabel(status: string) {

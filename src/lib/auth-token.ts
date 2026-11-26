@@ -7,6 +7,7 @@ export type SessionUser = {
   email: string;
   name: string;
   role: "business" | "athlete" | "admin";
+  impersonatorId?: string;
 };
 
 function secretKey() {
@@ -37,11 +38,13 @@ export async function readSession(token: string): Promise<SessionUser | null> {
     ) {
       return null;
     }
+    const impersonatorId = typeof payload.impersonatorId === "string" ? payload.impersonatorId : undefined;
     return {
       id: payload.id,
       email: payload.email,
       name: payload.name,
       role,
+      ...(impersonatorId ? { impersonatorId } : {}),
     };
   } catch {
     return null;
