@@ -73,7 +73,7 @@ export function WorkspaceFrame({
       {open ? <button aria-label="Close menu" className="fixed inset-0 z-30 bg-black/50 lg:hidden" onClick={() => setOpen(false)} /> : null}
       <aside className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col overflow-hidden bg-zinc-950 text-white transition-[width,transform] duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${collapsed ? "lg:w-20" : "lg:w-64"} ${open ? "translate-x-0" : "-translate-x-full"}`}>
         <div className={`flex h-16 items-center justify-between px-4 ${collapsed ? "lg:justify-center lg:px-2" : ""}`}>
-          <Link href={homeHref} onClick={() => setOpen(false)} className={collapsed ? "lg:[&_.logo-word]:hidden" : ""}>
+          <Link href={homeHref} onClick={() => setOpen(false)} className={collapsed ? "lg:[&_.logo-full]:hidden lg:[&_.logo-mark]:block" : ""}>
             <Logo />
           </Link>
           <button type="button" className="hidden h-8 w-8 place-items-center rounded-lg text-white/70 hover:bg-white/10 lg:grid" aria-label={collapsed ? "Expand navigation" : "Collapse navigation"} onClick={toggleCollapsed}>

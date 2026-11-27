@@ -2,9 +2,9 @@ import Link from "next/link";
 
 export function Logo({ light = true }: { light?: boolean }) {
   return (
-    <span className={`inline-flex items-center gap-2 font-semibold tracking-tight ${light ? "text-white" : "text-black"}`}>
-      <span className={`grid h-8 w-8 place-items-center text-sm ${light ? "bg-white text-black" : "bg-black text-white"}`}>A</span>
-      <span className="logo-word">AthleteGum</span>
+    <span className="inline-flex items-center">
+      <img src="/brand/mark-white.png" alt="" className="logo-mark hidden h-8 w-auto" />
+      <img src={light ? "/brand/logo-white.png" : "/brand/logo-dark.png"} alt="AthleteGum" className="logo-full h-9 w-auto" />
     </span>
   );
 }

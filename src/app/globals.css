@@ -1,5 +1,83 @@
 @import "tailwindcss";
 
-body {
-  font-family: var(--font-geist-sans), sans-serif;
+@theme {
+  --color-ag-primary: #4b5cff;
+  --color-ag-primary-hover: #3547e8;
+  --color-ag-primary-light: #b9c2ff;
+  --color-ag-background: #0b101c;
+  --color-ag-surface: #141b2b;
+  --color-ag-surface-elevated: #1b2436;
+  --color-ag-text: #f5f6fa;
+  --color-ag-text-secondary: #b7bece;
+  --color-ag-border: #30394b;
+}
+
+@layer base {
+  :root {
+    --ag-primary: #4b5cff;
+    --ag-primary-hover: #3547e8;
+    --ag-primary-light: #b9c2ff;
+    --ag-background: #0b101c;
+    --ag-surface: #141b2b;
+    --ag-surface-elevated: #1b2436;
+    --ag-text: #f5f6fa;
+    --ag-text-secondary: #b7bece;
+    --ag-border: #30394b;
+    --ag-white: #ffffff;
+  }
+
+  body {
+    font-family: var(--font-geist-sans), Inter, sans-serif;
+    background: var(--ag-background);
+    color: var(--ag-text);
+  }
+}
+
+@layer components {
+.ag-btn,
+.ag-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  padding: 0.75rem 1.35rem;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.ag-btn {
+  background: var(--ag-primary);
+  color: var(--ag-white);
+}
+
+.ag-btn:hover {
+  background: var(--ag-primary-hover);
+}
+
+.ag-btn-outline {
+  border: 1.5px solid rgba(245, 246, 250, 0.85);
+  background: transparent;
+  color: var(--ag-text);
+}
+
+.ag-btn-outline:hover {
+  background: rgba(245, 246, 250, 0.08);
+}
+
+.ag-btn:focus-visible,
+.ag-btn-outline:focus-visible {
+  outline: 2px solid var(--ag-primary-light);
+  outline-offset: 3px;
+}
+
+.ag-eyebrow {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ag-primary);
+}
 }
