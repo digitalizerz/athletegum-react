@@ -21,11 +21,32 @@ export default async function AdminDirectoryPage({ searchParams }: { searchParam
   const dir = params.dir === "desc" ? "desc" : "asc";
   const q = params.q?.trim() ?? "";
   const [listings, requests] = await Promise.all([
-    prisma.directoryListing.findMany({ orderBy: { name: "asc" }, include: { _count: { select: { interests: true } } } }),
+    prisma.directoryListing.findMany({
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        sport: true,
+        teamOrSchool: true,
+        position: true,
+        city: true,
+        squad: true,
+        level: true,
+        claimedUserId: true,
+        _count: { select: { interests: true } },
+      },
+    }),
     prisma.introRequest.findMany({
       orderBy: { createdAt: "desc" },
       take: 12,
-      include: { business: true, listing: true, athlete: true },
+      select: {
+        id: true,
+        createdAt: true,
+        note: true,
+        business: { select: { name: true, businessName: true } },
+        listing: { select: { name: true } },
+        athlete: { select: { name: true } },
+      },
     }),
   ]);
   const sports = [...new Set(listings.map((listing) => listing.sport))].sort();

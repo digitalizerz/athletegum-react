@@ -8,6 +8,7 @@ function runtimeUrl() {
   const base = pooled?.startsWith("postgres") ? pooled : direct;
   if (!base.startsWith("postgres")) return null;
   const limits = ["connection_limit=1", "pool_timeout=10", "connect_timeout=10"];
+  if (base.includes("pooler")) limits.push("pgbouncer=true");
   const missing = limits.filter((part) => !base.includes(`${part.split("=")[0]}=`));
   if (!missing.length) return base;
   return `${base}${base.includes("?") ? "&" : "?"}${missing.join("&")}`;

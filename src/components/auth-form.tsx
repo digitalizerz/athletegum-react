@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useActionState, useEffect } from "react";
 import type { AuthState } from "@/app/actions/auth";
 
@@ -23,12 +22,11 @@ export function AuthForm({
   next?: string;
   children: React.ReactNode;
 }) {
-  const router = useRouter();
   const [state, formAction, pending] = useActionState(action, empty);
   useEffect(() => {
-    if (state.href) router.push(state.href);
-  }, [router, state.href]);
-  const waiting = pending || Boolean(state.href);
+    if (state.href) window.location.assign(state.href);
+  }, [state.href]);
+  const waiting = pending;
 
   return (
     <form action={formAction} className="mx-auto w-full max-w-md border-2 border-white bg-black p-8 text-white">

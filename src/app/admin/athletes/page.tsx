@@ -22,7 +22,23 @@ export default async function AdminAthletesPage({ searchParams }: { searchParams
   const dir = params.dir === "asc" ? "asc" : "desc";
   const athletes = await prisma.user.findMany({
     where: { role: "athlete" },
-    include: { _count: { select: { dealsReceived: true } } },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      sport: true,
+      school: true,
+      city: true,
+      athleteLevel: true,
+      profilePhoto: true,
+      bio: true,
+      instagramHandle: true,
+      tiktokHandle: true,
+      twitterHandle: true,
+      youtubeHandle: true,
+      isActive: true,
+      updatedAt: true,
+    },
   });
   const sports = [...new Set(athletes.map((athlete) => athlete.sport).filter((sport): sport is string => Boolean(sport)))].sort();
   const needle = q.toLowerCase();

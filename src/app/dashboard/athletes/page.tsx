@@ -69,8 +69,16 @@ export default async function AthletesPage({
   };
 
   const [accounts, listings, saves, invitations, partnerships, intros] = await Promise.all([
-    prisma.user.findMany({ where: { role: "athlete", isActive: true }, orderBy: { name: "asc" } }),
-    prisma.directoryListing.findMany({ where: { claimedUserId: null }, orderBy: { name: "asc" } }),
+    prisma.user.findMany({
+      where: { role: "athlete", isActive: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, email: true, sport: true, school: true, city: true, athleteLevel: true, profilePhoto: true },
+    }),
+    prisma.directoryListing.findMany({
+      where: { claimedUserId: null },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, level: true, sport: true, squad: true, position: true, teamOrSchool: true, city: true, state: true },
+    }),
     prisma.savedAthlete.findMany({ where: { businessId: session.id }, select: { athleteId: true } }),
     prisma.dealInvitation.findMany({
       where: { deal: { businessId: session.id } },

@@ -85,7 +85,7 @@ export async function login(_prev: AuthState, formData: FormData): Promise<AuthS
   const password = String(formData.get("password") ?? "");
   if (!email || !password) return { error: "Enter your email and password." };
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findUnique({ where: { email }, select: { id: true, email: true, name: true, role: true, isActive: true, passwordHash: true } });
   if (!user || !(await verifyPassword(password, user.passwordHash))) {
     return { error: "Those credentials do not match our records." };
   }
@@ -121,10 +121,14 @@ export async function changePassword(_prev: AuthState, formData: FormData): Prom
   const confirm = String(formData.get("confirm") ?? "");
   if (password.length < 8) return { error: "Password must be at least 8 characters." };
   if (password !== confirm) return { error: "Passwords do not match." };
-  const user = await prisma.user.findUnique({ where: { id: session.id } });
+  const passwordHashPromise = hashPassword(password);
+  const user = await prisma.user.findUnique({ where: { id: session.id }, select: { id: true, passwordHash: true } });
   if (!user || !(await verifyPassword(current, user.passwordHash))) return { error: "The current password is wrong." };
-  await prisma.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(password) } });
-  await prisma.passwordReset.deleteMany({ where: { userId: user.id } });
+  const passwordHash = await passwordHashPromise;
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: user.id }, data: { passwordHash } }),
+    prisma.passwordReset.deleteMany({ where: { userId: user.id } }),
+  ]);
   return { error: "", saved: true };
 }
 
@@ -166,14 +170,18 @@ export async function resetPassword(_prev: AuthState, formData: FormData): Promi
   const confirm = String(formData.get("confirm") ?? "");
   if (password.length < 8) return { error: "Password must be at least 8 characters." };
   if (password !== confirm) return { error: "Passwords do not match." };
+  const passwordHashPromise = hashPassword(password);
   const row = token
-    ? await prisma.passwordReset.findUnique({ where: { tokenHash: createHash("sha256").update(token).digest("hex") }, include: { user: true } })
+    ? await prisma.passwordReset.findUnique({ where: { tokenHash: createHash("sha256").update(token).digest("hex") }, include: { user: { select: { role: true } } } })
     : null;
   if (!row || row.expiresAt.getTime() < Date.now()) return { error: "This reset link is invalid or expired." };
-  await prisma.user.update({ where: { id: row.userId }, data: { passwordHash: await hashPassword(password) } });
-  await prisma.passwordReset.deleteMany({ where: { userId: row.userId } });
+  const passwordHash = await passwordHashPromise;
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: row.userId }, data: { passwordHash } }),
+    prisma.passwordReset.deleteMany({ where: { userId: row.userId } }),
+  ]);
   const login = row.user.role === "athlete" ? "/athlete/login" : "/login";
-  redirect(`${login}?reset=1`);
+  return { error: "", href: `${login}?reset=1` };
 }
 
 export async function logout() {
