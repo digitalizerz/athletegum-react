@@ -41,7 +41,15 @@ export function MarketingNav({ className = "" }: { className?: string }) {
   );
 }
 
-export function MobileNav() {
+export function MobileNav({
+  signedIn = false,
+  home = "/dashboard",
+  logoutAction,
+}: {
+  signedIn?: boolean;
+  home?: string;
+  logoutAction?: () => Promise<void>;
+}) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
@@ -63,6 +71,21 @@ export function MobileNav() {
       {open ? (
         <div id="mobile-nav" className="absolute inset-x-0 top-full border-b border-[var(--ag-border)] bg-[var(--ag-background)] px-5 py-5 shadow-2xl">
           <MarketingNav className="flex flex-col items-start gap-4" />
+          <div className="mt-5 flex flex-col gap-2 border-t border-[var(--ag-border)] pt-5 md:hidden">
+            {signedIn ? (
+              <>
+                <Link href={home} className="ag-btn">Dashboard</Link>
+                <form action={logoutAction}>
+                  <button className="ag-btn-outline w-full">Sign out</button>
+                </form>
+              </>
+            ) : (
+              <>
+                <Link href="/login" className="ag-btn">Business Sign In</Link>
+                <Link href="/athlete/login" className="ag-btn-outline">Athlete Sign In</Link>
+              </>
+            )}
+          </div>
         </div>
       ) : null}
     </div>

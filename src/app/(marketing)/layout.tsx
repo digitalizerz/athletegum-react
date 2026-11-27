@@ -3,7 +3,7 @@ import { SiteFooter, SiteHeader } from "@/components/site-chrome";
 
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-full flex-col bg-[var(--ag-background)] text-[var(--ag-text)]">
+    <div className="flex min-h-full w-full min-w-0 flex-col overflow-x-clip bg-[var(--ag-background)] text-[var(--ag-text)]">
       <SiteHeader />
       <div className="flex-1">{children}</div>
       <SiteFooter />

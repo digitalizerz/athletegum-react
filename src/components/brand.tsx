@@ -4,7 +4,7 @@ export function Logo({ light = true }: { light?: boolean }) {
   return (
     <span className="inline-flex items-center">
       <img src="/brand/mark-white.png" alt="" className="logo-mark hidden h-8 w-auto" />
-      <img src={light ? "/brand/logo-white.png" : "/brand/logo-dark.png"} alt="AthleteGum" className="logo-full h-9 w-auto" />
+      <img src={light ? "/brand/logo-white.png" : "/brand/logo-dark.png"} alt="AthleteGum" className="logo-full h-7 w-auto max-w-[9.5rem] sm:h-9 sm:max-w-none" />
     </span>
   );
 }

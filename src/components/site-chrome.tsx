@@ -10,34 +10,34 @@ export async function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-[var(--ag-border)] bg-[var(--ag-background)]/92 text-[var(--ag-text)] backdrop-blur">
-      <div className="relative mx-auto flex h-[76px] w-full max-w-7xl items-center justify-between gap-4 px-4 md:px-6 lg:px-10">
-        <Link href="/" className="shrink-0" aria-label="AthleteGum home">
+      <div className="relative mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-3 px-4 sm:h-[76px] md:px-6 lg:px-10">
+        <Link href="/" className="min-w-0 shrink" aria-label="AthleteGum home">
           <Logo />
         </Link>
         <MarketingNav className="hidden items-center gap-9 xl:flex" />
         <div className="flex shrink-0 items-center gap-2">
-          {session ? (
-            <>
-              <Link href={home} className="ag-btn !px-4 !py-2">
-                Dashboard
-              </Link>
-              <form action={logout}>
-                <button className="px-2 py-2 text-xs font-semibold text-[var(--ag-text-secondary)] hover:text-white sm:text-sm">Sign out</button>
-              </form>
-            </>
-          ) : (
-            <>
-              <Link href="/login" className="ag-btn !px-3.5 !py-2 sm:!px-4">
-                <span className="sm:hidden">Business</span>
-                <span className="hidden sm:inline">Business Sign In</span>
-              </Link>
-              <Link href="/athlete/login" className="ag-btn-outline !px-3.5 !py-2 sm:!px-4">
-                <span className="sm:hidden">Athlete</span>
-                <span className="hidden sm:inline">Athlete Sign In</span>
-              </Link>
-            </>
-          )}
-          <MobileNav />
+          <div className="hidden items-center gap-2 md:flex">
+            {session ? (
+              <>
+                <Link href={home} className="ag-btn !px-4 !py-2">
+                  Dashboard
+                </Link>
+                <form action={logout}>
+                  <button className="px-2 py-2 text-sm font-semibold text-[var(--ag-text-secondary)] hover:text-white">Sign out</button>
+                </form>
+              </>
+            ) : (
+              <>
+                <Link href="/login" className="ag-btn !px-4 !py-2">
+                  Business Sign In
+                </Link>
+                <Link href="/athlete/login" className="ag-btn-outline !px-4 !py-2">
+                  Athlete Sign In
+                </Link>
+              </>
+            )}
+          </div>
+          <MobileNav signedIn={Boolean(session)} home={home} logoutAction={logout} />
         </div>
       </div>
     </header>
