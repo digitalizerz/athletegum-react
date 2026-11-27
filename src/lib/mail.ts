@@ -1,25 +1,23 @@
 type From = { email: string; name: string };
 
 function fromAddress(): From | null {
-  const raw = process.env.MAIL_FROM?.trim() || "AthleteGum <notifications@athletegum.com>";
-  const named = raw.match(/^(.*)<([^>]+)>$/);
+  const raw = (process.env.MAIL_FROM?.trim() || "AthleteGum <notifications@athletegum.com>").replace(/^["']|["']$/g, "");
+  const named = raw.match(/^(.*?)\s*<\s*([^>\s]+@[^>\s]+)\s*>\s*$/);
   if (named) {
-    const email = named[2].trim();
-    if (!email.includes("@")) return null;
-    return { email, name: named[1].trim().replace(/^"|"$/g, "") || "AthleteGum" };
+    return { email: named[2].trim(), name: named[1].trim().replace(/^["']|["']$/g, "") || "AthleteGum" };
   }
-  if (!raw.includes("@")) return null;
-  return { email: raw, name: "AthleteGum" };
+  const email = raw.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0];
+  if (!email) return null;
+  return { email, name: "AthleteGum" };
 }
 
 export function mailConfigured() {
   return Boolean(process.env.SENDGRID_API_KEY && fromAddress());
 }
 
-async function deliver(to: string, subject: string, text: string) {
+async function postMail(from: From, to: string, subject: string, text: string) {
   const key = process.env.SENDGRID_API_KEY;
-  const from = fromAddress();
-  if (!key || !from) return false;
+  if (!key) return false;
   const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
@@ -31,7 +29,18 @@ async function deliver(to: string, subject: string, text: string) {
       content: [{ type: "text/plain", value: text }],
     }),
   });
-  return response.status === 202 || response.ok;
+  if (response.status === 202 || response.ok) return true;
+  const body = await response.text();
+  console.error("SendGrid rejected mail", response.status, body.slice(0, 500));
+  return false;
+}
+
+async function deliver(to: string, subject: string, text: string) {
+  const from = fromAddress();
+  if (!process.env.SENDGRID_API_KEY || !from) return false;
+  if (await postMail(from, to, subject, text)) return true;
+  if (from.email.toLowerCase() === "business@athletegum.com") return false;
+  return postMail({ email: "business@athletegum.com", name: "AthleteGum" }, to, subject, text);
 }
 
 export async function sendPasswordReset(to: string, link: string, name?: string) {

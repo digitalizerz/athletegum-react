@@ -151,7 +151,10 @@ export async function requestPasswordReset(_prev: AuthState, formData: FormData)
       });
       const link = `${await appOrigin()}/reset-password?token=${token}`;
       const sent = await sendPasswordReset(user.email, link, user.name);
-      if (!sent) return { error: "The reset email could not be sent. Try again." };
+      if (!sent) {
+        await prisma.passwordReset.deleteMany({ where: { userId: user.id } });
+        return { error: "The reset email could not be sent. Try again." };
+      }
     }
   }
   return { error: "", sent: true };
