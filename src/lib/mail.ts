@@ -12,7 +12,11 @@ function fromAddress(): From | null {
 }
 
 export function mailConfigured() {
-  return Boolean(mailKey() && fromAddress());
+  return Boolean((resendKey() || mailKey()) && fromAddress());
+}
+
+function resendKey() {
+  return process.env.RESEND_API_KEY?.trim().replace(/^["']|["']$/g, "") ?? "";
 }
 
 function mailKey() {
@@ -21,8 +25,8 @@ function mailKey() {
 
 function failureReason(status: number, body: string) {
   try {
-    const parsed = JSON.parse(body) as { errors?: { message?: string }[] };
-    const message = parsed.errors?.map((error) => error.message).filter(Boolean).join(" ");
+    const parsed = JSON.parse(body) as { message?: string; errors?: { message?: string }[] };
+    const message = parsed.message || parsed.errors?.map((error) => error.message).filter(Boolean).join(" ");
     if (message) return message.slice(0, 180);
   } catch {
     // SendGrid sometimes returns plain text.
@@ -50,10 +54,30 @@ async function postMail(host: string, from: From, to: string, subject: string, t
   return { ok: false as const, status: response.status, reason: failureReason(response.status, body) };
 }
 
+async function postResend(from: From, to: string, subject: string, text: string) {
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${resendKey()}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      from: `${from.name} <${from.email}>`,
+      to: [to],
+      reply_to: from.email,
+      subject,
+      text,
+    }),
+  });
+  if (response.ok) return { ok: true as const, reason: "" };
+  const body = await response.text();
+  console.error("Resend rejected mail", response.status, body.slice(0, 500));
+  return { ok: false as const, reason: failureReason(response.status, body) };
+}
+
 async function sendMail(to: string, subject: string, text: string) {
   const from = fromAddress();
+  if (!from) return { ok: false, reason: "Email is not set up on this server yet." };
+  if (resendKey()) return postResend(from, to, subject, text);
   const key = mailKey();
-  if (!key || !from) return { ok: false, reason: "Email is not set up on this server yet." };
+  if (!key) return { ok: false, reason: "Email is not set up on this server yet." };
   const hosts = ["https://api.sendgrid.com", "https://api.eu.sendgrid.com"];
   const senders = from.email.toLowerCase() === "business@athletegum.com" ? [from] : [from, { email: "business@athletegum.com", name: "AthleteGum" }];
   let reason = "The reset email could not be sent.";
