@@ -17,37 +17,17 @@ function escapeHtml(value: string) {
   return value.replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char] ?? char);
 }
 
-export function renderEmail(input: EmailContent) {
-  const preview = escapeHtml(input.preview);
-  const paragraphs = input.paragraphs
-    .filter(Boolean)
-    .map((paragraph) => `<p style="margin:0 0 16px;font-family:${font};font-size:16px;line-height:26px;color:#d4d4d4;">${escapeHtml(paragraph)}</p>`)
-    .join("");
-  const detail = input.detail
-    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;border:1px solid #ffffff;">
-        <tr>
-          <td style="padding:16px 18px;font-family:${font};">
-            <p style="margin:0;font-size:18px;line-height:24px;font-weight:700;color:#ffffff;">${escapeHtml(input.detail.title)}</p>
-            <p style="margin:6px 0 0;font-size:14px;line-height:20px;color:#a3a3a3;">${escapeHtml(input.detail.meta)}</p>
-          </td>
-        </tr>
-      </table>`
-    : "";
-  const note = input.note
-    ? `<p style="margin:0 0 24px;font-family:${font};font-size:14px;line-height:22px;color:#a3a3a3;">${escapeHtml(input.note)}</p>`
-    : "";
-  const url = escapeHtml(input.actionUrl);
-
-  return `<!DOCTYPE html>
+/** One shell for every AthleteGum email. Resend fills the {{{VARIABLE}}} slots. */
+export const emailTemplate = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
-  <title>${escapeHtml(input.heading)}</title>
+  <title>{{{HEADING}}}</title>
 </head>
 <body style="margin:0;padding:0;background:#000000;">
-  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#000000;">${preview}</div>
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#000000;">{{{PREVIEW_TEXT}}}</div>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#000000;">
     <tr>
       <td align="center" style="padding:32px 16px;">
@@ -60,22 +40,20 @@ export function renderEmail(input: EmailContent) {
                   <td style="padding-left:10px;font-family:${font};font-size:16px;font-weight:700;color:#ffffff;">AthleteGum</td>
                 </tr>
               </table>
-              <p style="margin:28px 0 8px;font-family:${font};font-size:12px;letter-spacing:0.16em;font-weight:700;color:#a3a3a3;">${escapeHtml(input.eyebrow)}</p>
-              <h1 style="margin:0 0 20px;font-family:${font};font-size:32px;line-height:38px;font-weight:700;color:#ffffff;">${escapeHtml(input.heading)}</h1>
-              <p style="margin:0 0 16px;font-family:${font};font-size:16px;line-height:26px;color:#ffffff;">${escapeHtml(input.greeting)}</p>
-              ${paragraphs}
-              ${detail}
-              ${note}
+              <p style="margin:28px 0 8px;font-family:${font};font-size:12px;letter-spacing:0.16em;font-weight:700;color:#a3a3a3;">{{{EYEBROW}}}</p>
+              <h1 style="margin:0 0 20px;font-family:${font};font-size:32px;line-height:38px;font-weight:700;color:#ffffff;">{{{HEADING}}}</h1>
+              <p style="margin:0 0 16px;font-family:${font};font-size:16px;line-height:26px;color:#ffffff;">{{{GREETING}}}</p>
+              {{{BODY_HTML}}}
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 20px;">
                 <tr>
                   <td align="center" bgcolor="#ffffff" style="background:#ffffff;">
-                    <a href="${url}" style="display:block;padding:16px 24px;font-family:${font};font-size:15px;font-weight:700;color:#000000;text-decoration:none;text-align:center;">${escapeHtml(input.buttonLabel)}</a>
+                    <a href="{{{ACTION_URL}}}" style="display:block;padding:16px 24px;font-family:${font};font-size:15px;font-weight:700;color:#000000;text-decoration:none;text-align:center;">{{{BUTTON_LABEL}}}</a>
                   </td>
                 </tr>
               </table>
               <p style="margin:0 0 8px;font-family:${font};font-size:13px;line-height:20px;color:#a3a3a3;">Or copy this link:</p>
-              <p style="margin:0 0 20px;font-family:${font};font-size:13px;line-height:20px;word-break:break-all;"><a href="${url}" style="color:#ffffff;text-decoration:underline;">${url}</a></p>
-              <p style="margin:0;font-family:${font};font-size:13px;line-height:20px;color:#a3a3a3;">${escapeHtml(input.finePrint)}</p>
+              <p style="margin:0 0 20px;font-family:${font};font-size:13px;line-height:20px;word-break:break-all;"><a href="{{{ACTION_URL}}}" style="color:#ffffff;text-decoration:underline;">{{{ACTION_URL}}}</a></p>
+              <p style="margin:0;font-family:${font};font-size:13px;line-height:20px;color:#a3a3a3;">{{{FINE_PRINT}}}</p>
             </td>
           </tr>
           <tr>
@@ -93,4 +71,38 @@ export function renderEmail(input: EmailContent) {
   </table>
 </body>
 </html>`;
+
+function bodyHtml(input: EmailContent) {
+  const paragraphs = input.paragraphs
+    .filter(Boolean)
+    .map((paragraph) => `<p style="margin:0 0 16px;font-family:${font};font-size:16px;line-height:26px;color:#d4d4d4;">${escapeHtml(paragraph)}</p>`)
+    .join("");
+  const detail = input.detail
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;border:1px solid #ffffff;">
+        <tr>
+          <td style="padding:16px 18px;font-family:${font};">
+            <p style="margin:0;font-size:18px;line-height:24px;font-weight:700;color:#ffffff;">${escapeHtml(input.detail.title)}</p>
+            <p style="margin:6px 0 0;font-size:14px;line-height:20px;color:#a3a3a3;">${escapeHtml(input.detail.meta)}</p>
+          </td>
+        </tr>
+      </table>`
+    : "";
+  const note = input.note
+    ? `<p style="margin:0 0 24px;font-family:${font};font-size:14px;line-height:22px;color:#a3a3a3;">${escapeHtml(input.note)}</p>`
+    : "";
+  return `${paragraphs}${detail}${note}`;
+}
+
+export function renderEmail(input: EmailContent) {
+  const slots: Record<string, string> = {
+    PREVIEW_TEXT: escapeHtml(input.preview),
+    EYEBROW: escapeHtml(input.eyebrow),
+    HEADING: escapeHtml(input.heading),
+    GREETING: escapeHtml(input.greeting),
+    BUTTON_LABEL: escapeHtml(input.buttonLabel),
+    ACTION_URL: escapeHtml(input.actionUrl),
+    FINE_PRINT: escapeHtml(input.finePrint),
+    BODY_HTML: bodyHtml(input),
+  };
+  return emailTemplate.replace(/\{\{\{([A-Z_]+)\}\}\}/g, (match, key) => slots[key] ?? match);
 }
