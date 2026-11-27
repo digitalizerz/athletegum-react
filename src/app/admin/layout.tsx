@@ -11,7 +11,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <WorkspaceFrame
       name={session.name}
       photo={null}
-      subtitle="Platform control"
+      subtitle="Super Admin"
       unread={0}
       homeHref="/admin"
       notificationsHref="/admin/audit"
@@ -22,6 +22,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         { href: "/admin", label: "Overview", icon: "home", exact: true },
         { href: "/admin/users", label: "Users", icon: "users" },
         { href: "/admin/athletes", label: "Athletes", icon: "athletes" },
+        { href: "/admin/directory", label: "Directory", icon: "athletes" },
         { href: "/admin/businesses", label: "Businesses", icon: "businesses" },
         { href: "/admin/deals", label: "Deals", icon: "deals" },
         { href: "/admin/payments", label: "Payments", icon: "earnings" },

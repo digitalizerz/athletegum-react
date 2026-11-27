@@ -43,6 +43,16 @@ export async function sendPasswordReset(to: string, link: string, name?: string)
   );
 }
 
+export async function sendClaimInvite(to: string, name: string, school: string, sport: string, link: string, highSchool: boolean) {
+  const first = name.split(" ")[0] || name;
+  const extra = highSchool ? "\n\nThis profile is for introductions. High school athletes are not paid through a deal.\n" : "\n";
+  return deliver(
+    to,
+    "Claim your AthleteGum profile",
+    `Hi ${first},\n\nAthleteGum has a profile ready for you: ${name}, ${school}, ${sport}.\n\nSet your password and claim it:\n${link}\n${extra}\nThis link expires in 7 days. If you were not expecting this, you can ignore this email.`,
+  );
+}
+
 export async function sendDealInvitation(to: string, athleteName: string, businessName: string, dealName: string, amount: string, link: string) {
   return deliver(
     to,

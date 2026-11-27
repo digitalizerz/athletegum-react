@@ -80,6 +80,9 @@ export async function createDeal(_prev: FormState, formData: FormData): Promise<
   const feePercent = platformFeePercent(business.subscriptionPlan, business.subscriptionStatus, await getFeeSchedule());
   const split = splitCompensation(parsed.data.compensation, feePercent);
   const athlete = await prisma.user.findUnique({ where: { email: athleteEmail } });
+  if (athlete?.role === "athlete" && athlete.athleteLevel === "highschool") {
+    return { error: "High school athletes stay off checkout. Use I'm interested and AthleteGum will follow up." };
+  }
   const token = randomBytes(16).toString("hex");
 
   const deal = await prisma.deal.create({

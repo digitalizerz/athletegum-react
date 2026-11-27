@@ -46,6 +46,49 @@ model User {
   savesReceived SavedAthlete[]   @relation("AthleteSaves")
   auditLogs      AuditLog[]
   passwordResets PasswordReset[]
+  claimedListing DirectoryListing?
+  introRequests  IntroRequest[] @relation("BusinessIntros")
+  introSubjects  IntroRequest[] @relation("AthleteIntros")
+}
+
+model DirectoryListing {
+  id            String   @id @default(cuid())
+  name          String
+  level         String
+  sport         String
+  squad         String?
+  position      String?
+  teamOrSchool  String
+  city          String?
+  state         String?
+  status         String    @default("listed")
+  email          String?   @unique
+  claimTokenHash String?   @unique
+  claimExpiresAt DateTime?
+  claimedUserId  String?   @unique
+  claimedUser   User?    @relation(fields: [claimedUserId], references: [id], onDelete: SetNull)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  interests     IntroRequest[]
+
+  @@index([level, sport])
+  @@index([city])
+}
+
+model IntroRequest {
+  id         String            @id @default(cuid())
+  businessId String
+  business   User              @relation("BusinessIntros", fields: [businessId], references: [id], onDelete: Cascade)
+  listingId  String?
+  listing    DirectoryListing? @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  athleteId  String?
+  athlete    User?             @relation("AthleteIntros", fields: [athleteId], references: [id], onDelete: Cascade)
+  note       String?
+  createdAt  DateTime          @default(now())
+
+  @@index([businessId])
+  @@index([listingId])
+  @@index([athleteId])
 }
 
 model PasswordReset {

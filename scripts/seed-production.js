@@ -1,4 +1,6 @@
 const { randomBytes, scrypt } = require("node:crypto");
+const { readFileSync } = require("node:fs");
+const path = require("node:path");
 const { promisify } = require("node:util");
 const { PrismaClient } = require("@prisma/client");
 
@@ -11,7 +13,40 @@ async function hashPassword(password) {
   return `${salt}:${derived.toString("hex")}`;
 }
 
+async function seedRosters() {
+  const athletes = JSON.parse(readFileSync(path.join(__dirname, "houston-rosters.json"), "utf8"));
+  let created = 0;
+  for (const athlete of athletes) {
+    const existing = await prisma.directoryListing.findFirst({
+      where: {
+        name: athlete.name,
+        teamOrSchool: athlete.teamOrSchool,
+        sport: athlete.sport,
+        squad: athlete.squad,
+      },
+    });
+    if (existing) continue;
+    await prisma.directoryListing.create({
+      data: {
+        name: athlete.name,
+        level: athlete.level,
+        sport: athlete.sport,
+        squad: athlete.squad,
+        position: athlete.position,
+        teamOrSchool: athlete.teamOrSchool,
+        city: athlete.city,
+        state: athlete.state,
+        status: "listed",
+      },
+    });
+    created += 1;
+  }
+  console.log(`Directory listings: added ${created} of ${athletes.length}.`);
+}
+
 async function main() {
+  await seedRosters();
+
   const fees = await prisma.feeSchedule.findUnique({ where: { id: "default" } });
   if (!fees) {
     await prisma.feeSchedule.create({

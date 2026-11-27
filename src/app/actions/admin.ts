@@ -22,6 +22,7 @@ const athleteFields = z.object({
   tiktokHandle: z.string().trim().max(80),
   twitterHandle: z.string().trim().max(80),
   youtubeHandle: z.string().trim().max(80),
+  bio: z.string().trim().max(300, "Keep the bio under 300 characters."),
 });
 
 const businessFields = z.object({
@@ -35,6 +36,11 @@ const businessFields = z.object({
 
 function blank(value: string) {
   return value || null;
+}
+
+function athleteLevelOrNull(value: FormDataEntryValue | null) {
+  const level = String(value ?? "");
+  return level === "pro" || level === "college" || level === "highschool" ? level : null;
 }
 
 async function record(adminId: string, action: string, summary: string, entityType?: string, entityId?: string) {
@@ -71,6 +77,7 @@ export async function updateAthlete(userId: string, formData: FormData) {
     tiktokHandle: formData.get("tiktokHandle") ?? "",
     twitterHandle: formData.get("twitterHandle") ?? "",
     youtubeHandle: formData.get("youtubeHandle") ?? "",
+    bio: formData.get("bio") ?? "",
   });
   if (!parsed.success) bounce(back, parsed.error.issues[0]?.message ?? "Check the form.");
   const athlete = await prisma.user.findUnique({ where: { id: userId } });
@@ -91,6 +98,7 @@ export async function updateAthlete(userId: string, formData: FormData) {
       tiktokHandle: handle(parsed.data.tiktokHandle),
       twitterHandle: handle(parsed.data.twitterHandle),
       youtubeHandle: handle(parsed.data.youtubeHandle),
+      bio: blank(parsed.data.bio),
     },
   });
   await record(admin.id, "athlete.updated", `Athlete ${email} was updated.`, "user", userId);
@@ -235,7 +243,8 @@ const accountFields = z.object({
 export async function createAccount(formData: FormData) {
   const admin = await requireUser("admin");
   const roleValue = String(formData.get("role") ?? "business");
-  const back = `/admin/accounts/new?role=${roleValue}`;
+  const wizard = formData.get("wizard") === "1";
+  const back = wizard ? "/admin/athletes/new" : `/admin/accounts/new?role=${roleValue}`;
   const parsed = accountFields.safeParse({
     role: roleValue,
     name: formData.get("name"),
@@ -258,12 +267,19 @@ export async function createAccount(formData: FormData) {
       businessName: parsed.data.role === "business" ? blank(parsed.data.businessName) : null,
       sport: parsed.data.role === "athlete" ? blank(parsed.data.sport) : null,
       school: parsed.data.role === "athlete" ? blank(parsed.data.school) : null,
+      city: parsed.data.role === "athlete" ? blank(String(formData.get("city") ?? "").trim().slice(0, 80)) : null,
+      athleteLevel: parsed.data.role === "athlete" ? athleteLevelOrNull(formData.get("athleteLevel")) : null,
+      bio: parsed.data.role === "athlete" ? blank(String(formData.get("bio") ?? "").trim().slice(0, 300)) : null,
+      instagramHandle: parsed.data.role === "athlete" ? handle(String(formData.get("instagramHandle") ?? "")) : null,
       profileToken: parsed.data.role === "athlete" ? randomBytes(16).toString("hex") : null,
       subscriptionPlan: "free",
       subscriptionStatus: "inactive",
     },
   });
   await record(admin.id, "user.created", `${parsed.data.role} account ${email} was created.`, "user", user.id);
+  if (wizard && parsed.data.role === "athlete") {
+    redirect(`/admin/athletes/new?created=${encodeURIComponent(parsed.data.name)}&id=${user.id}`);
+  }
   const next = parsed.data.role === "athlete" ? "/admin/athletes" : parsed.data.role === "business" ? "/admin/businesses" : "/admin/users?tab=admin";
   redirect(`${next}${next.includes("?") ? "&" : "?"}saved=${encodeURIComponent("Account created.")}`);
 }
