@@ -12,40 +12,68 @@ function fromAddress(): From | null {
 }
 
 export function mailConfigured() {
-  return Boolean(process.env.SENDGRID_API_KEY && fromAddress());
+  return Boolean(mailKey() && fromAddress());
 }
 
-async function postMail(from: From, to: string, subject: string, text: string) {
-  const key = process.env.SENDGRID_API_KEY;
-  if (!key) return false;
-  const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
+function mailKey() {
+  return process.env.SENDGRID_API_KEY?.trim().replace(/^["']|["']$/g, "").replace(/^Bearer\s+/i, "") ?? "";
+}
+
+function failureReason(status: number, body: string) {
+  try {
+    const parsed = JSON.parse(body) as { errors?: { message?: string }[] };
+    const message = parsed.errors?.map((error) => error.message).filter(Boolean).join(" ");
+    if (message) return message.slice(0, 180);
+  } catch {
+    // SendGrid sometimes returns plain text.
+  }
+  if (status === 401) return "The email service rejected the API key.";
+  if (status === 403) return "The email service refused this sender.";
+  return `The email service returned ${status}.`;
+}
+
+async function postMail(host: string, from: From, to: string, subject: string, text: string) {
+  const response = await fetch(`${host}/v3/mail/send`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${mailKey()}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       personalizations: [{ to: [{ email: to }] }],
       from,
-      reply_to: { email: "business@athletegum.com", name: "AthleteGum" },
+      reply_to: from,
       subject,
       content: [{ type: "text/plain", value: text }],
     }),
   });
-  if (response.status === 202 || response.ok) return true;
+  if (response.status === 202 || response.ok) return { ok: true as const, status: response.status, reason: "" };
   const body = await response.text();
-  console.error("SendGrid rejected mail", response.status, body.slice(0, 500));
-  return false;
+  console.error("SendGrid rejected mail", host, response.status, body.slice(0, 500));
+  return { ok: false as const, status: response.status, reason: failureReason(response.status, body) };
+}
+
+async function sendMail(to: string, subject: string, text: string) {
+  const from = fromAddress();
+  const key = mailKey();
+  if (!key || !from) return { ok: false, reason: "Email is not set up on this server yet." };
+  const hosts = ["https://api.sendgrid.com", "https://api.eu.sendgrid.com"];
+  const senders = from.email.toLowerCase() === "business@athletegum.com" ? [from] : [from, { email: "business@athletegum.com", name: "AthleteGum" }];
+  let reason = "The reset email could not be sent.";
+  for (const host of hosts) {
+    for (const sender of senders) {
+      const result = await postMail(host, sender, to, subject, text);
+      if (result.ok) return { ok: true, reason: "" };
+      reason = result.reason;
+    }
+  }
+  return { ok: false, reason };
 }
 
 async function deliver(to: string, subject: string, text: string) {
-  const from = fromAddress();
-  if (!process.env.SENDGRID_API_KEY || !from) return false;
-  if (await postMail(from, to, subject, text)) return true;
-  if (from.email.toLowerCase() === "business@athletegum.com") return false;
-  return postMail({ email: "business@athletegum.com", name: "AthleteGum" }, to, subject, text);
+  return (await sendMail(to, subject, text)).ok;
 }
 
 export async function sendPasswordReset(to: string, link: string, name?: string) {
   const greeting = name ? `Hi ${name.split(" ")[0]},` : "Hi,";
-  return deliver(
+  return sendMail(
     to,
     "Reset your AthleteGum password",
     `${greeting}\n\nReset your AthleteGum password:\n${link}\n\nThis link expires in 30 minutes. If you did not ask for a reset, you can ignore this email.`,
