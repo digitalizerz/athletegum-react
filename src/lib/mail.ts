@@ -1,3 +1,5 @@
+import { renderEmail, type EmailContent } from "@/lib/email-layout";
+
 type From = { email: string; name: string };
 
 function fromAddress(): From | null {
@@ -36,7 +38,8 @@ function failureReason(status: number, body: string) {
   return `The email service returned ${status}.`;
 }
 
-async function postMail(host: string, from: From, to: string, subject: string, text: string) {
+async function postMail(host: string, from: From, to: string, subject: string, text: string, html?: string) {
+  const content = [{ type: "text/plain", value: text }, ...(html ? [{ type: "text/html", value: html }] : [])];
   const response = await fetch(`${host}/v3/mail/send`, {
     method: "POST",
     headers: { Authorization: `Bearer ${mailKey()}`, "Content-Type": "application/json" },
@@ -45,7 +48,7 @@ async function postMail(host: string, from: From, to: string, subject: string, t
       from,
       reply_to: from,
       subject,
-      content: [{ type: "text/plain", value: text }],
+      content,
     }),
   });
   if (response.status === 202 || response.ok) return { ok: true as const, status: response.status, reason: "" };
@@ -54,7 +57,7 @@ async function postMail(host: string, from: From, to: string, subject: string, t
   return { ok: false as const, status: response.status, reason: failureReason(response.status, body) };
 }
 
-async function postResend(from: From, to: string, subject: string, text: string) {
+async function postResend(from: From, to: string, subject: string, text: string, html?: string) {
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${resendKey()}`, "Content-Type": "application/json" },
@@ -64,6 +67,7 @@ async function postResend(from: From, to: string, subject: string, text: string)
       reply_to: from.email,
       subject,
       text,
+      ...(html ? { html } : {}),
     }),
   });
   if (response.ok) return { ok: true as const, reason: "" };
@@ -72,10 +76,10 @@ async function postResend(from: From, to: string, subject: string, text: string)
   return { ok: false as const, reason: failureReason(response.status, body) };
 }
 
-async function sendMail(to: string, subject: string, text: string) {
+async function sendMail(to: string, subject: string, text: string, html?: string) {
   const from = fromAddress();
   if (!from) return { ok: false, reason: "Email is not set up on this server yet." };
-  if (resendKey()) return postResend(from, to, subject, text);
+  if (resendKey()) return postResend(from, to, subject, text, html);
   const key = mailKey();
   if (!key) return { ok: false, reason: "Email is not set up on this server yet." };
   const hosts = ["https://api.sendgrid.com", "https://api.eu.sendgrid.com"];
@@ -83,7 +87,7 @@ async function sendMail(to: string, subject: string, text: string) {
   let reason = "The reset email could not be sent.";
   for (const host of hosts) {
     for (const sender of senders) {
-      const result = await postMail(host, sender, to, subject, text);
+      const result = await postMail(host, sender, to, subject, text, html);
       if (result.ok) return { ok: true, reason: "" };
       reason = result.reason;
     }
@@ -91,57 +95,102 @@ async function sendMail(to: string, subject: string, text: string) {
   return { ok: false, reason };
 }
 
-async function deliver(to: string, subject: string, text: string) {
-  return (await sendMail(to, subject, text)).ok;
+async function deliver(to: string, subject: string, content: EmailContent) {
+  const text = [
+    content.greeting,
+    "",
+    ...content.paragraphs,
+    content.detail ? `${content.detail.title}, ${content.detail.meta}` : "",
+    content.note ?? "",
+    "",
+    `${content.buttonLabel}: ${content.actionUrl}`,
+    "",
+    content.finePrint,
+  ]
+    .filter((line) => line !== "")
+    .join("\n");
+  return (await sendMail(to, subject, text, renderEmail(content))).ok;
 }
 
 export async function sendPasswordReset(to: string, link: string, name?: string) {
-  const greeting = name ? `Hi ${name.split(" ")[0]},` : "Hi,";
-  return sendMail(
-    to,
-    "Reset your AthleteGum password",
-    `${greeting}\n\nReset your AthleteGum password:\n${link}\n\nThis link expires in 30 minutes. If you did not ask for a reset, you can ignore this email.`,
-  );
+  const first = name?.split(" ")[0];
+  const content: EmailContent = {
+    preview: "Choose a new AthleteGum password. This link expires in 30 minutes.",
+    eyebrow: "ACCOUNT",
+    heading: "Reset your password",
+    greeting: first ? `Hi ${first},` : "Hi,",
+    paragraphs: ["Use the button below to choose a new password."],
+    buttonLabel: "Choose a new password",
+    actionUrl: link,
+    finePrint: "This link expires in 30 minutes. If you did not ask for a reset, you can ignore this email.",
+  };
+  return sendMail(to, "Reset your AthleteGum password", `${content.greeting}\n\nReset your AthleteGum password:\n${link}\n\n${content.finePrint}`, renderEmail(content));
 }
 
 export async function sendClaimInvite(to: string, name: string, school: string, sport: string, link: string, highSchool: boolean) {
   const first = name.split(" ")[0] || name;
-  const extra = highSchool ? "\n\nThis profile is for introductions. High school athletes are not paid through a deal.\n" : "\n";
-  return deliver(
-    to,
-    "Claim your AthleteGum profile",
-    `Hi ${first},\n\nAthleteGum has a profile ready for you: ${name}, ${school}, ${sport}.\n\nSet your password and claim it:\n${link}\n${extra}\nThis link expires in 7 days. If you were not expecting this, you can ignore this email.`,
-  );
+  return deliver(to, "Claim your AthleteGum profile", {
+    preview: "Your AthleteGum profile is ready. Set a password to claim it.",
+    eyebrow: "ATHLETE PROFILE",
+    heading: "Claim your profile",
+    greeting: `Hi ${first},`,
+    paragraphs: ["AthleteGum has a profile ready for you. Set a password to claim it."],
+    detail: { title: name, meta: [school, sport].filter(Boolean).join(" · ") },
+    note: highSchool ? "This profile is for introductions. High school athletes are not paid through a deal." : undefined,
+    buttonLabel: "Claim your profile",
+    actionUrl: link,
+    finePrint: "This link expires in 7 days. If you were not expecting this, you can ignore this email.",
+  });
 }
 
 export async function sendDealInvitation(to: string, athleteName: string, businessName: string, dealName: string, amount: string, link: string) {
-  return deliver(
-    to,
-    "You've received a new deal",
-    `Hi ${athleteName},\n\n${businessName} invited you to a ${dealName} deal for ${amount}. The card payment is already held.\n\nOpen the deal:\n${link}`,
-  );
+  return deliver(to, "You've received a new deal", {
+    preview: `${businessName} invited you to a ${dealName} deal for ${amount}.`,
+    eyebrow: "DEAL",
+    heading: "You've received a new deal",
+    greeting: `Hi ${athleteName},`,
+    paragraphs: [`${businessName} invited you to a ${dealName} deal for ${amount}. The card payment is already held.`],
+    buttonLabel: "Open the deal",
+    actionUrl: link,
+    finePrint: "The payment stays held until the work is approved.",
+  });
 }
 
 export async function sendDealAccepted(to: string, businessName: string, athleteName: string, dealName: string, link: string) {
-  return deliver(
-    to,
-    "Deal accepted by athlete",
-    `Hi ${businessName},\n\n${athleteName} accepted your ${dealName} deal.\n\nOpen the deal:\n${link}`,
-  );
+  return deliver(to, "Deal accepted by athlete", {
+    preview: `${athleteName} accepted your ${dealName} deal.`,
+    eyebrow: "DEAL",
+    heading: "Deal accepted",
+    greeting: `Hi ${businessName},`,
+    paragraphs: [`${athleteName} accepted your ${dealName} deal.`],
+    buttonLabel: "Open the deal",
+    actionUrl: link,
+    finePrint: "You can follow the work from the deal page.",
+  });
 }
 
 export async function sendDeliverablesSubmitted(to: string, businessName: string, athleteName: string, dealName: string, link: string) {
-  return deliver(
-    to,
-    "Deliverables submitted for review",
-    `Hi ${businessName},\n\n${athleteName} submitted work for your ${dealName} deal.\n\nReview it:\n${link}`,
-  );
+  return deliver(to, "Deliverables submitted for review", {
+    preview: `${athleteName} submitted work for your ${dealName} deal.`,
+    eyebrow: "DEAL",
+    heading: "Work is ready to review",
+    greeting: `Hi ${businessName},`,
+    paragraphs: [`${athleteName} submitted work for your ${dealName} deal.`],
+    buttonLabel: "Review the work",
+    actionUrl: link,
+    finePrint: "Nothing is paid out until you approve it.",
+  });
 }
 
 export async function sendRevisionsRequested(to: string, athleteName: string, dealName: string, notes: string, link: string) {
-  return deliver(
-    to,
-    "Revisions requested on your submission",
-    `Hi ${athleteName},\n\nRevisions were requested on your ${dealName} deal:\n\n${notes}\n\nOpen the deal:\n${link}`,
-  );
+  return deliver(to, "Revisions requested on your submission", {
+    preview: `Revisions were requested on your ${dealName} deal.`,
+    eyebrow: "DEAL",
+    heading: "Revisions requested",
+    greeting: `Hi ${athleteName},`,
+    paragraphs: [`Revisions were requested on your ${dealName} deal.`, notes],
+    buttonLabel: "Open the deal",
+    actionUrl: link,
+    finePrint: "Update the work and submit it again.",
+  });
 }
